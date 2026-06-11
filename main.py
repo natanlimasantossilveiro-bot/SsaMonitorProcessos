@@ -1,17 +1,9 @@
-from database.repositories import cadastrar_processo, listar_processos_ativos
+from database.repositories import buscar_processos_por_orgao
 
 
 def main():
 
-    processo_id = cadastrar_processo(
-        orgao_id=1,
-        numero_processo="01-828832/2012",
-        cliente="TESTE CURITIBA"
-    )
-
-    print(f"Processo cadastrado com ID: {processo_id}")
-
-    processos = listar_processos_ativos()
+    processos = buscar_processos_por_orgao(1)
 
     for processo in processos:
         print(processo)
