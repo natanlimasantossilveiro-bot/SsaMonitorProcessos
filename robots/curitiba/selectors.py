@@ -1,0 +1,1 @@
+URL_CURITIBA = "http://consultaprotocolo.curitiba.pr.gov.br/index.aspx"

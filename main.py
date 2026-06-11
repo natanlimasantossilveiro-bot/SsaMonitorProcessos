@@ -1,22 +1,12 @@
-from database.repositories import (
-    buscar_processos_por_orgao
-)
+import asyncio
 
-from robots.curitiba.robot import (
-    consultar_processo
-)
+from robots.curitiba.robot import abrir_pagina_curitiba
 
 
-def main():
+async def main():
 
-    processos = buscar_processos_por_orgao(1)
-
-    for processo in processos:
-
-        consultar_processo(
-            processo
-        )
+    await abrir_pagina_curitiba()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
