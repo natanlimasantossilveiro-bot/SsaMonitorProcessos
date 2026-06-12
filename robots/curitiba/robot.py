@@ -1,6 +1,10 @@
 from playwright.async_api import async_playwright
 
-from robots.curitiba.parser import separar_protocolo_curitiba
+from robots.curitiba.parser import (
+    separar_protocolo_curitiba,
+    extrair_dados_resultado_curitiba,
+)
+
 from robots.curitiba.selectors import (
     URL_CURITIBA,
     CAMPO_TIPO_PROTOCOLO,
@@ -44,36 +48,63 @@ async def abrir_pagina_curitiba():
             dados["ano"]
         )
 
+        print("Campos preenchidos com sucesso.")
+
+        context = page.context
+
+        paginas_antes = context.pages.copy()
+
         await page.click(
             BOTAO_PESQUISAR
         )
 
         print("Pesquisa realizada.")
 
-        print("Campos preenchidos com sucesso.")
+        await page.wait_for_timeout(5000)
+
+        paginas_depois = context.pages
+
+        novas_paginas = [
+            pagina
+            for pagina in paginas_depois
+            if pagina not in paginas_antes
+        ]
+
+        print("\n=== JANELAS ABERTAS ===\n")
+
+        pagina_resultado = None
+
+        for indice, pagina in enumerate(
+            novas_paginas,
+            start=1
+        ):
+
+            titulo = await pagina.title()
+
+            print(f"Janela {indice}")
+            print(f"Título: {titulo}")
+            print(f"URL: {pagina.url}")
+            print("-" * 50)
+
+            if "frmImprimeProtocolo" in pagina.url:
+
+                pagina_resultado = pagina
+
+        if pagina_resultado:
+
+            print("\n=== RESULTADO ENCONTRADO ===\n")
+
+            conteudo = await pagina_resultado.text_content(
+                "body"
+            )
+
+            dados_extraidos = extrair_dados_resultado_curitiba(
+                conteudo
+            )
+
+            print("\n=== DADOS EXTRAÍDOS ===\n")
+            print(dados_extraidos)
 
         await page.wait_for_timeout(15000)
 
         await browser.close()
-
-
-def consultar_processo(processo):
-    """
-    Prepara os dados do processo de Curitiba para consulta.
-    """
-
-    protocolo = processo["numero_processo"]
-
-    dados_protocolo = separar_protocolo_curitiba(
-        protocolo
-    )
-
-    print("=== CONSULTA CURITIBA ===")
-    print(f"Processo ID: {processo['id']}")
-    print(f"Cliente: {processo['cliente']}")
-    print(f"Protocolo completo: {protocolo}")
-    print(f"Prefixo: {dados_protocolo['prefixo']}")
-    print(f"Número: {dados_protocolo['numero']}")
-    print(f"Ano: {dados_protocolo['ano']}")
-
-    return dados_protocolo
