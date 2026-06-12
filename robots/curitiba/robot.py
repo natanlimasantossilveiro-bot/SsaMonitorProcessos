@@ -13,6 +13,11 @@ from robots.curitiba.selectors import (
     BOTAO_PESQUISAR,
 )
 
+from database.repositories import (
+    atualizar_dados_processo,
+    registrar_movimentacao,
+)
+
 
 async def abrir_pagina_curitiba():
 
@@ -104,6 +109,21 @@ async def abrir_pagina_curitiba():
 
             print("\n=== DADOS EXTRAÍDOS ===\n")
             print(dados_extraidos)
+
+            atualizar_dados_processo(
+                processo_id=1,
+                status_atual=dados_extraidos["situacao"],
+                data_ultimo_movimento=dados_extraidos["ultima_data_movimento"],
+                ultima_movimentacao=dados_extraidos["ultima_movimentacao"],
+            )
+
+            registrar_movimentacao(
+                processo_id=1,
+                data_movimento=dados_extraidos["ultima_data_movimento"],
+                descricao=dados_extraidos["ultima_movimentacao"],
+            )
+
+            print("\nDados salvos no banco com sucesso.")
 
         await page.wait_for_timeout(15000)
 

@@ -129,3 +129,78 @@ def buscar_processos_por_orgao(orgao_id):
     conexao.close()
 
     return processos
+
+
+def atualizar_dados_processo(
+    processo_id,
+    status_atual,
+    data_ultimo_movimento,
+    ultima_movimentacao
+):
+    """
+    Atualiza os dados principais do processo após uma consulta.
+    """
+
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    query = """
+        UPDATE processos
+        SET
+            status_atual = %s,
+            data_ultimo_movimento = STR_TO_DATE(%s, '%d/%m/%Y'),
+            ultima_movimentacao = %s,
+            ultima_consulta = NOW()
+        WHERE id = %s;
+    """
+
+    valores = (
+        status_atual,
+        data_ultimo_movimento,
+        ultima_movimentacao,
+        processo_id,
+    )
+
+    cursor.execute(query, valores)
+    conexao.commit()
+
+    cursor.close()
+    conexao.close()
+
+
+def registrar_movimentacao(
+    processo_id,
+    data_movimento,
+    descricao
+):
+    """
+    Registra uma movimentação capturada no histórico.
+    """
+
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    query = """
+        INSERT INTO movimentacoes (
+            processo_id,
+            data_movimento,
+            descricao
+        )
+        VALUES (
+            %s,
+            STR_TO_DATE(%s, '%d/%m/%Y'),
+            %s
+        );
+    """
+
+    valores = (
+        processo_id,
+        data_movimento,
+        descricao,
+    )
+
+    cursor.execute(query, valores)
+    conexao.commit()
+
+    cursor.close()
+    conexao.close()
