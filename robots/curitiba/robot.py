@@ -19,10 +19,10 @@ from database.repositories import (
 )
 
 
-async def abrir_pagina_curitiba():
+async def consultar_processo_curitiba(processo):
 
     dados = separar_protocolo_curitiba(
-        "01-144125/2026"
+        processo["numero_processo"]
     )
 
     async with async_playwright() as p:
@@ -65,7 +65,21 @@ async def abrir_pagina_curitiba():
 
         print("Pesquisa realizada.")
 
-        await page.wait_for_timeout(5000)
+        await page.wait_for_timeout(7000)
+
+        print("\n=== TODAS AS PÁGINAS ABERTAS ===\n")
+
+        for indice, pagina in enumerate(
+            context.pages,
+            start=1
+        ):
+
+            titulo = await pagina.title()
+
+            print(f"Página {indice}")
+            print(f"Título: {titulo}")
+            print(f"URL: {pagina.url}")
+            print("-" * 50)
 
         paginas_depois = context.pages
 
@@ -75,56 +89,64 @@ async def abrir_pagina_curitiba():
             if pagina not in paginas_antes
         ]
 
-        print("\n=== JANELAS ABERTAS ===\n")
-
         pagina_resultado = None
 
-        for indice, pagina in enumerate(
-            novas_paginas,
-            start=1
-        ):
-
-            titulo = await pagina.title()
-
-            print(f"Janela {indice}")
-            print(f"Título: {titulo}")
-            print(f"URL: {pagina.url}")
-            print("-" * 50)
+        for pagina in novas_paginas:
 
             if "frmImprimeProtocolo" in pagina.url:
 
                 pagina_resultado = pagina
 
-        if pagina_resultado:
+        if not pagina_resultado:
 
-            print("\n=== RESULTADO ENCONTRADO ===\n")
-
-            conteudo = await pagina_resultado.text_content(
+            texto_pagina_principal = await page.text_content(
                 "body"
             )
 
-            dados_extraidos = extrair_dados_resultado_curitiba(
-                conteudo
-            )
+            if texto_pagina_principal and "Este Protocolo não existe" in texto_pagina_principal:
 
-            print("\n=== DADOS EXTRAÍDOS ===\n")
-            print(dados_extraidos)
+                print("\n=== PROCESSO NÃO ENCONTRADO ===\n")
+                print("Este Protocolo não existe.")
 
-            atualizar_dados_processo(
-                processo_id=1,
-                status_atual=dados_extraidos["situacao"],
-                data_ultimo_movimento=dados_extraidos["ultima_data_movimento"],
-                ultima_movimentacao=dados_extraidos["ultima_movimentacao"],
-            )
+            else:
 
-            registrar_movimentacao(
-                processo_id=1,
-                data_movimento=dados_extraidos["ultima_data_movimento"],
-                descricao=dados_extraidos["ultima_movimentacao"],
-            )
+                print("\n=== RESULTADO NÃO LOCALIZADO ===\n")
+                print("Nenhuma janela de resultado foi encontrada.")
 
-            print("\nDados salvos no banco com sucesso.")
+            await page.wait_for_timeout(5000)
+            await browser.close()
+            return None
 
-        await page.wait_for_timeout(15000)
+        print("\n=== RESULTADO ENCONTRADO ===\n")
+
+        conteudo = await pagina_resultado.text_content(
+            "body"
+        )
+
+        dados_extraidos = extrair_dados_resultado_curitiba(
+            conteudo
+        )
+
+        print("\n=== DADOS EXTRAÍDOS ===\n")
+        print(dados_extraidos)
+
+        atualizar_dados_processo(
+            processo_id=processo["id"],
+            status_atual=dados_extraidos["situacao"],
+            data_ultimo_movimento=dados_extraidos["ultima_data_movimento"],
+            ultima_movimentacao=dados_extraidos["ultima_movimentacao"],
+        )
+
+        registrar_movimentacao(
+            processo_id=processo["id"],
+            data_movimento=dados_extraidos["ultima_data_movimento"],
+            descricao=dados_extraidos["ultima_movimentacao"],
+        )
+
+        print("\nDados salvos no banco com sucesso.")
+
+        await page.wait_for_timeout(10000)
 
         await browser.close()
+
+        return dados_extraidos
