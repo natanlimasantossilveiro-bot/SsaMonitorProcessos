@@ -20,81 +20,106 @@ from database.repositories import (
 
 
 async def consultar_processo_curitiba(processo):
+    browser = None
 
-    dados = separar_protocolo_curitiba(
-        processo["numero_processo"]
-    )
-
-    async with async_playwright() as p:
-
-        browser = await p.chromium.launch(
-            headless=False
+    try:
+        dados = separar_protocolo_curitiba(
+            processo["numero_processo"]
         )
 
-        page = await browser.new_page()
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=False
+            )
 
-        await page.goto(
-            URL_CURITIBA,
-            wait_until="load"
-        )
+            page = await browser.new_page()
 
-        await page.fill(CAMPO_TIPO_PROTOCOLO, dados["prefixo"])
-        await page.fill(CAMPO_NUMERO_PROTOCOLO, dados["numero"])
-        await page.fill(CAMPO_ANO_PROTOCOLO, dados["ano"])
+            await page.goto(
+                URL_CURITIBA,
+                wait_until="load"
+            )
 
-        print("Campos preenchidos com sucesso.")
+            await page.fill(CAMPO_TIPO_PROTOCOLO, dados["prefixo"])
+            await page.fill(CAMPO_NUMERO_PROTOCOLO, dados["numero"])
+            await page.fill(CAMPO_ANO_PROTOCOLO, dados["ano"])
 
-        context = page.context
-        paginas_antes = context.pages.copy()
+            print("Campos preenchidos com sucesso.")
 
-        await page.click(BOTAO_PESQUISAR)
+            context = page.context
 
-        print("Pesquisa realizada.")
+            await page.click(BOTAO_PESQUISAR)
 
-        await page.wait_for_timeout(7000)
+            print("Pesquisa realizada.")
 
-        pagina_resultado = None
+            await page.wait_for_timeout(7000)
 
-        for pagina in context.pages:
+            pagina_resultado = None
 
-            if "frmImprimeProtocolo" in pagina.url:
-                pagina_resultado = pagina
+            for pagina in context.pages:
+                if "frmImprimeProtocolo" in pagina.url:
+                    pagina_resultado = pagina
 
-        if not pagina_resultado:
+            if not pagina_resultado:
+                print("\n=== RESULTADO NÃO LOCALIZADO ===")
 
-            print("\n=== RESULTADO NÃO LOCALIZADO ===")
+                await browser.close()
+
+                return {
+                    "status": "PROCESSO_NAO_ENCONTRADO",
+                    "mensagem": "Janela de resultado não foi localizada.",
+                    "dados": None,
+                }
+
+            conteudo = await pagina_resultado.text_content("body")
+
+            dados_extraidos = extrair_dados_resultado_curitiba(
+                conteudo
+            )
+
+            print("\n=== DADOS EXTRAÍDOS ===")
+            print(dados_extraidos)
+
+            atualizar_dados_processo(
+                processo_id=processo["id"],
+                status_atual=dados_extraidos["situacao"],
+                data_ultimo_movimento=dados_extraidos["ultima_data_movimento"],
+                ultima_movimentacao=dados_extraidos["ultima_movimentacao"],
+            )
+
+            movimentacao_nova = registrar_movimentacao(
+                processo_id=processo["id"],
+                data_movimento=dados_extraidos["ultima_data_movimento"],
+                descricao=dados_extraidos["ultima_movimentacao"],
+            )
+
+            if movimentacao_nova:
+                print("\n🚨 NOVA MOVIMENTAÇÃO DETECTADA E REGISTRADA.")
+
+                status = "NOVA_MOVIMENTACAO"
+                mensagem = "Nova movimentação detectada e registrada."
+
+            else:
+                print("\n✅ Sem nova movimentação. Registro já existia.")
+
+                status = "SEM_NOVA_MOVIMENTACAO"
+                mensagem = "Movimentação já existia no banco."
+
+            await page.wait_for_timeout(3000)
+
             await browser.close()
-            return None
 
-        conteudo = await pagina_resultado.text_content("body")
+            return {
+                "status": status,
+                "mensagem": mensagem,
+                "dados": dados_extraidos,
+            }
 
-        dados_extraidos = extrair_dados_resultado_curitiba(
-            conteudo
-        )
+    except Exception as erro:
+        if browser:
+            await browser.close()
 
-        print("\n=== DADOS EXTRAÍDOS ===")
-        print(dados_extraidos)
-
-        atualizar_dados_processo(
-            processo_id=processo["id"],
-            status_atual=dados_extraidos["situacao"],
-            data_ultimo_movimento=dados_extraidos["ultima_data_movimento"],
-            ultima_movimentacao=dados_extraidos["ultima_movimentacao"],
-        )
-
-        movimentacao_nova = registrar_movimentacao(
-            processo_id=processo["id"],
-            data_movimento=dados_extraidos["ultima_data_movimento"],
-            descricao=dados_extraidos["ultima_movimentacao"],
-        )
-
-        if movimentacao_nova:
-            print("\n🚨 NOVA MOVIMENTAÇÃO DETECTADA E REGISTRADA.")
-        else:
-            print("\n✅ Sem nova movimentação. Registro já existia.")
-
-        await page.wait_for_timeout(5000)
-
-        await browser.close()
-
-        return dados_extraidos
+        return {
+            "status": "ERRO_CONSULTA",
+            "mensagem": str(erro),
+            "dados": None,
+        }

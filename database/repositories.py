@@ -62,6 +62,33 @@ def obter_ou_criar_orgao(nome, tipo, url, chave_robo=None):
     )
 
 
+def listar_orgaos():
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    query = """
+        SELECT
+            id,
+            nome,
+            tipo,
+            url,
+            chave_robo,
+            possui_login,
+            possui_captcha,
+            ativo
+        FROM orgaos
+        ORDER BY nome, url;
+    """
+
+    cursor.execute(query)
+    orgaos = cursor.fetchall()
+
+    cursor.close()
+    conexao.close()
+
+    return orgaos
+
+
 def buscar_processo_por_orgao_e_numero(orgao_id, numero_processo):
     conexao = criar_conexao()
     cursor = conexao.cursor(dictionary=True)
@@ -97,7 +124,6 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
     cursor = conexao.cursor()
 
     if processo_existente:
-
         query = """
             UPDATE processos
             SET
@@ -133,7 +159,6 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
         processo_id = processo_existente["id"]
 
     else:
-
         query = """
             INSERT INTO processos (
                 orgao_id,
@@ -190,6 +215,34 @@ def buscar_processos_por_orgao(orgao_id):
     """
 
     cursor.execute(query, (orgao_id,))
+    processos = cursor.fetchall()
+
+    cursor.close()
+    conexao.close()
+
+    return processos
+
+
+def listar_processos_ativos_com_orgao():
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    query = """
+        SELECT
+            processos.*,
+            orgaos.nome AS nome_orgao,
+            orgaos.tipo AS tipo_orgao,
+            orgaos.url AS url_orgao,
+            orgaos.chave_robo AS chave_robo,
+            orgaos.possui_login AS orgao_possui_login,
+            orgaos.possui_captcha AS orgao_possui_captcha
+        FROM processos
+        INNER JOIN orgaos ON processos.orgao_id = orgaos.id
+        WHERE processos.ativo = TRUE
+        ORDER BY processos.id;
+    """
+
+    cursor.execute(query)
     processos = cursor.fetchall()
 
     cursor.close()
@@ -302,6 +355,93 @@ def registrar_movimentacao(
             descricao,
         )
     )
+
+    conexao.commit()
+    cursor.close()
+    conexao.close()
+
+    return True
+
+
+def obter_colunas_tabela(nome_tabela):
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    cursor.execute(f"DESCRIBE {nome_tabela};")
+    colunas = cursor.fetchall()
+
+    cursor.close()
+    conexao.close()
+
+    return [coluna["Field"] for coluna in colunas]
+
+
+def registrar_historico_consulta(
+    processo_id,
+    status,
+    mensagem=None
+):
+    colunas = obter_colunas_tabela("historico_consultas")
+
+    dados = {}
+
+    if "processo_id" in colunas:
+        dados["processo_id"] = processo_id
+
+    if "status_consulta" in colunas:
+        dados["status_consulta"] = status
+
+    if "status" in colunas:
+        dados["status"] = status
+
+    if "resultado" in colunas:
+        dados["resultado"] = status
+
+    if "mensagem" in colunas:
+        dados["mensagem"] = mensagem
+
+    if "observacao" in colunas:
+        dados["observacao"] = mensagem
+
+    if "observacoes" in colunas:
+        dados["observacoes"] = mensagem
+
+    campos_data_possiveis = [
+        "data_consulta",
+        "consultado_em",
+        "created_at",
+        "criado_em",
+    ]
+
+    campo_data = None
+
+    for campo in campos_data_possiveis:
+        if campo in colunas:
+            campo_data = campo
+            break
+
+    campos = list(dados.keys())
+    valores = list(dados.values())
+
+    placeholders = ["%s"] * len(valores)
+
+    if campo_data:
+        campos.append(campo_data)
+        placeholders.append("NOW()")
+
+    query = f"""
+        INSERT INTO historico_consultas (
+            {", ".join(campos)}
+        )
+        VALUES (
+            {", ".join(placeholders)}
+        );
+    """
+
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    cursor.execute(query, tuple(valores))
 
     conexao.commit()
     cursor.close()
