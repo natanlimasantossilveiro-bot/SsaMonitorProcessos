@@ -18,13 +18,35 @@ from database.repositories import (
     registrar_movimentacao,
 )
 
+from utils.evidencias import salvar_evidencia
+
+
+def montar_numero_processo_curitiba(processo):
+    numero_processo = str(processo.get("numero_processo", "")).strip()
+    exercicio = processo.get("exercicio")
+
+    if "/" in numero_processo:
+        return numero_processo
+
+    if not exercicio:
+        raise ValueError(
+            f"Processo Curitiba sem exercício informado: {numero_processo}"
+        )
+
+    exercicio = str(exercicio).strip()
+
+    return f"{numero_processo}/{exercicio}"
+
 
 async def consultar_processo_curitiba(processo):
     browser = None
+    page = None
 
     try:
+        numero_processo_completo = montar_numero_processo_curitiba(processo)
+
         dados = separar_protocolo_curitiba(
-            processo["numero_processo"]
+            numero_processo_completo
         )
 
         async with async_playwright() as p:
@@ -62,11 +84,18 @@ async def consultar_processo_curitiba(processo):
             if not pagina_resultado:
                 print("\n=== RESULTADO NÃO LOCALIZADO ===")
 
+                evidencia = await salvar_evidencia(
+                    page=page,
+                    processo=processo,
+                    status="PROCESSO_NAO_ENCONTRADO",
+                    mensagem="Janela de resultado não foi localizada.",
+                )
+
                 await browser.close()
 
                 return {
                     "status": "PROCESSO_NAO_ENCONTRADO",
-                    "mensagem": "Janela de resultado não foi localizada.",
+                    "mensagem": f"Janela de resultado não foi localizada. Evidência: {evidencia}",
                     "dados": None,
                 }
 
@@ -94,13 +123,11 @@ async def consultar_processo_curitiba(processo):
 
             if movimentacao_nova:
                 print("\n🚨 NOVA MOVIMENTAÇÃO DETECTADA E REGISTRADA.")
-
                 status = "NOVA_MOVIMENTACAO"
                 mensagem = "Nova movimentação detectada e registrada."
 
             else:
                 print("\n✅ Sem nova movimentação. Registro já existia.")
-
                 status = "SEM_NOVA_MOVIMENTACAO"
                 mensagem = "Movimentação já existia no banco."
 
@@ -115,11 +142,27 @@ async def consultar_processo_curitiba(processo):
             }
 
     except Exception as erro:
+        mensagem = str(erro)
+
+        if page:
+            try:
+                evidencia = await salvar_evidencia(
+                    page=page,
+                    processo=processo,
+                    status="ERRO_CONSULTA",
+                    mensagem=mensagem,
+                )
+
+                mensagem = f"{mensagem} | Evidência: {evidencia}"
+
+            except Exception as erro_evidencia:
+                mensagem = f"{mensagem} | Falha ao salvar evidência: {erro_evidencia}"
+
         if browser:
             await browser.close()
 
         return {
             "status": "ERRO_CONSULTA",
-            "mensagem": str(erro),
+            "mensagem": mensagem,
             "dados": None,
         }
