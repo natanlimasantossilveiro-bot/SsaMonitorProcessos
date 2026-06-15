@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from database.repositories import (
     listar_orgaos,
     listar_processos_ativos_com_orgao,
@@ -9,6 +11,53 @@ from robots.curitiba.robot import consultar_processo_curitiba
 
 STATUS_SEM_ROBO_CONFIGURADO = "SEM_ROBO_CONFIGURADO"
 STATUS_ERRO_CONSULTA = "ERRO_CONSULTA"
+
+
+def criar_resumo_execucao():
+    return {
+        "TOTAL_PROCESSOS": 0,
+        "NOVA_MOVIMENTACAO": 0,
+        "SEM_NOVA_MOVIMENTACAO": 0,
+        "PROCESSO_NAO_ENCONTRADO": 0,
+        "ERRO_CONSULTA": 0,
+        "SISTEMA_FORA": 0,
+        "SEM_ROBO_CONFIGURADO": 0,
+        "OK": 0,
+    }
+
+
+def incrementar_resumo(resumo, status):
+    if status not in resumo:
+        resumo[status] = 0
+
+    resumo[status] += 1
+
+
+def formatar_tempo(segundos):
+    horas = int(segundos // 3600)
+    minutos = int((segundos % 3600) // 60)
+    segundos = int(segundos % 60)
+
+    return f"{horas:02d}:{minutos:02d}:{segundos:02d}"
+
+
+def exibir_resumo_execucao(resumo, inicio_execucao):
+    fim_execucao = datetime.now()
+    tempo_total = (fim_execucao - inicio_execucao).total_seconds()
+
+    print("\n========================================")
+    print("RESUMO DA EXECUÇÃO")
+    print("========================================")
+    print(f"Total de processos: {resumo.get('TOTAL_PROCESSOS', 0)}")
+    print(f"Nova movimentação: {resumo.get('NOVA_MOVIMENTACAO', 0)}")
+    print(f"Sem nova movimentação: {resumo.get('SEM_NOVA_MOVIMENTACAO', 0)}")
+    print(f"Processo não encontrado: {resumo.get('PROCESSO_NAO_ENCONTRADO', 0)}")
+    print(f"Erro de consulta: {resumo.get('ERRO_CONSULTA', 0)}")
+    print(f"Sistema fora: {resumo.get('SISTEMA_FORA', 0)}")
+    print(f"Sem robô configurado: {resumo.get('SEM_ROBO_CONFIGURADO', 0)}")
+    print(f"OK: {resumo.get('OK', 0)}")
+    print(f"Tempo total: {formatar_tempo(tempo_total)}")
+    print("========================================")
 
 
 def validar_orgaos_importados():
@@ -30,17 +79,29 @@ def validar_orgaos_importados():
 
 
 async def monitorar_processos_ativos():
+    inicio_execucao = datetime.now()
+    resumo = criar_resumo_execucao()
+
     processos = listar_processos_ativos_com_orgao()
+
+    resumo["TOTAL_PROCESSOS"] = len(processos)
 
     print("\n=== MONITORAMENTO DE PROCESSOS ATIVOS ===")
     print(f"Total de processos encontrados: {len(processos)}")
 
     if not processos:
         print("Nenhum processo ativo encontrado.")
+        exibir_resumo_execucao(resumo, inicio_execucao)
         return
 
     for processo in processos:
-        await rotear_consulta_processo(processo)
+        resultado = await rotear_consulta_processo(processo)
+
+        status = resultado.get("status", "OK")
+
+        incrementar_resumo(resumo, status)
+
+    exibir_resumo_execucao(resumo, inicio_execucao)
 
 
 async def monitorar_um_processo_teste():
@@ -75,7 +136,12 @@ async def monitorar_um_processo_teste():
 
     processo = processos[indice_escolhido - 1]
 
-    await rotear_consulta_processo(processo)
+    resultado = await rotear_consulta_processo(processo)
+
+    print("\n=== RESUMO DO TESTE ===")
+    print(f"Processo: {processo.get('numero_processo')}")
+    print(f"Status: {resultado.get('status')}")
+    print(f"Mensagem: {resultado.get('mensagem')}")
 
 
 async def rotear_consulta_processo(processo):
@@ -105,6 +171,7 @@ async def rotear_consulta_processo(processo):
             )
 
             print(f"Status final: {status}")
+
             return resultado
 
         except Exception as erro:
