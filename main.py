@@ -1,19 +1,18 @@
-import asyncio
-
-from database.repositories import buscar_processos_por_orgao
-from robots.curitiba.robot import consultar_processo_curitiba
+from services.importador_planilha_service import importar_planilha_base
 
 
-async def main():
+def main():
 
-    processos = buscar_processos_por_orgao(1)
+    resultado = importar_planilha_base(
+        "Planilha_Base.xlsx"
+    )
 
-    for processo in processos:
-
-        print(f"\nConsultando processo: {processo['numero_processo']}")
-
-        await consultar_processo_curitiba(processo)
+    print("\n=== IMPORTAÇÃO DA PLANILHA ===")
+    print(f"Total de linhas lidas: {resultado['total_linhas']}")
+    print(f"Total importados/atualizados: {resultado['total_importados']}")
+    print(f"Total ignorados: {resultado['total_ignorados']}")
+    print(f"Sem robô configurado: {resultado['sem_robo']}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

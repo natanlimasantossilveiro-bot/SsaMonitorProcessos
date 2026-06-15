@@ -1,91 +1,181 @@
 from database.connection import criar_conexao
 
 
-def cadastrar_processo(orgao_id, numero_processo, cliente=None):
+def buscar_orgao_por_url(url):
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    cursor.execute(
+        "SELECT * FROM orgaos WHERE url = %s LIMIT 1;",
+        (url,)
+    )
+
+    orgao = cursor.fetchone()
+
+    cursor.close()
+    conexao.close()
+
+    return orgao
+
+
+def cadastrar_orgao(nome, tipo, url, chave_robo=None):
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
     query = """
-        INSERT INTO processos (
-            orgao_id,
-            numero_processo,
-            cliente
+        INSERT INTO orgaos (
+            nome,
+            tipo,
+            url,
+            chave_robo,
+            possui_login,
+            possui_captcha
         )
-        VALUES (%s, %s, %s)
+        VALUES (%s, %s, %s, %s, FALSE, FALSE);
     """
 
-    cursor.execute(query, (orgao_id, numero_processo, cliente))
+    cursor.execute(
+        query,
+        (nome, tipo, url, chave_robo)
+    )
+
     conexao.commit()
-
-    processo_id = cursor.lastrowid
-
-    cursor.close()
-    conexao.close()
-
-    return processo_id
-
-
-def listar_processos_ativos():
-    conexao = criar_conexao()
-    cursor = conexao.cursor(dictionary=True)
-
-    query = """
-        SELECT
-            processos.id,
-            processos.numero_processo,
-            processos.cliente,
-            processos.status_atual,
-            processos.data_ultimo_movimento,
-            processos.ultima_movimentacao,
-            processos.ultima_consulta,
-            orgaos.id AS orgao_id,
-            orgaos.nome AS nome_orgao,
-            orgaos.tipo AS tipo_orgao,
-            orgaos.url AS url_orgao
-        FROM processos
-        INNER JOIN orgaos ON processos.orgao_id = orgaos.id
-        WHERE processos.ativo = TRUE
-        ORDER BY processos.id;
-    """
-
-    cursor.execute(query)
-    processos = cursor.fetchall()
+    orgao_id = cursor.lastrowid
 
     cursor.close()
     conexao.close()
 
-    return processos
+    return orgao_id
 
 
-def buscar_processo_por_id(processo_id):
+def obter_ou_criar_orgao(nome, tipo, url, chave_robo=None):
+    orgao = buscar_orgao_por_url(url)
+
+    if orgao:
+        return orgao["id"]
+
+    return cadastrar_orgao(
+        nome=nome,
+        tipo=tipo,
+        url=url,
+        chave_robo=chave_robo,
+    )
+
+
+def buscar_processo_por_orgao_e_numero(orgao_id, numero_processo):
     conexao = criar_conexao()
     cursor = conexao.cursor(dictionary=True)
 
     query = """
-        SELECT
-            processos.id,
-            processos.numero_processo,
-            processos.cliente,
-            processos.status_atual,
-            processos.data_ultimo_movimento,
-            processos.ultima_movimentacao,
-            processos.ultima_consulta,
-            orgaos.id AS orgao_id,
-            orgaos.nome AS nome_orgao,
-            orgaos.tipo AS tipo_orgao,
-            orgaos.url AS url_orgao
+        SELECT *
         FROM processos
-        INNER JOIN orgaos ON processos.orgao_id = orgaos.id
-        WHERE processos.id = %s;
+        WHERE orgao_id = %s
+        AND numero_processo = %s
+        LIMIT 1;
     """
 
-    cursor.execute(query, (processo_id,))
+    cursor.execute(
+        query,
+        (orgao_id, numero_processo)
+    )
+
     processo = cursor.fetchone()
 
     cursor.close()
     conexao.close()
 
     return processo
+
+
+def cadastrar_ou_atualizar_processo_planilha(dados):
+    processo_existente = buscar_processo_por_orgao_e_numero(
+        dados["orgao_id"],
+        dados["numero_processo"]
+    )
+
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    if processo_existente:
+
+        query = """
+            UPDATE processos
+            SET
+                empresa = %s,
+                cnpj = %s,
+                municipio = %s,
+                exercicio = %s,
+                codigo = %s,
+                acesso = %s,
+                login_acesso = %s,
+                senha_acesso = %s,
+                cliente = %s,
+                ativo = TRUE
+            WHERE id = %s;
+        """
+
+        cursor.execute(
+            query,
+            (
+                dados["empresa"],
+                dados["cnpj"],
+                dados["municipio"],
+                dados["exercicio"],
+                dados["codigo"],
+                dados["acesso"],
+                dados["login"],
+                dados["senha"],
+                dados["empresa"],
+                processo_existente["id"],
+            )
+        )
+
+        processo_id = processo_existente["id"]
+
+    else:
+
+        query = """
+            INSERT INTO processos (
+                orgao_id,
+                empresa,
+                cnpj,
+                municipio,
+                exercicio,
+                numero_processo,
+                codigo,
+                acesso,
+                login_acesso,
+                senha_acesso,
+                cliente
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+        """
+
+        cursor.execute(
+            query,
+            (
+                dados["orgao_id"],
+                dados["empresa"],
+                dados["cnpj"],
+                dados["municipio"],
+                dados["exercicio"],
+                dados["numero_processo"],
+                dados["codigo"],
+                dados["acesso"],
+                dados["login"],
+                dados["senha"],
+                dados["empresa"],
+            )
+        )
+
+        processo_id = cursor.lastrowid
+
+    conexao.commit()
+
+    cursor.close()
+    conexao.close()
+
+    return processo_id
 
 
 def buscar_processos_por_orgao(orgao_id):
