@@ -23,6 +23,7 @@ def criar_resumo_execucao():
         "SISTEMA_FORA": 0,
         "SEM_ROBO_CONFIGURADO": 0,
         "OK": 0,
+        "ORGAOS_SEM_ROBO": {},
     }
 
 
@@ -31,6 +32,22 @@ def incrementar_resumo(resumo, status):
         resumo[status] = 0
 
     resumo[status] += 1
+
+
+def registrar_orgao_sem_robo(resumo, processo):
+    nome_orgao = processo.get("nome_orgao") or "Órgão não informado"
+    url_orgao = processo.get("url_orgao") or "URL não informada"
+
+    chave = f"{nome_orgao} | {url_orgao}"
+
+    if chave not in resumo["ORGAOS_SEM_ROBO"]:
+        resumo["ORGAOS_SEM_ROBO"][chave] = {
+            "nome": nome_orgao,
+            "url": url_orgao,
+            "total": 0,
+        }
+
+    resumo["ORGAOS_SEM_ROBO"][chave]["total"] += 1
 
 
 def formatar_tempo(segundos):
@@ -58,6 +75,15 @@ def exibir_resumo_execucao(resumo, inicio_execucao):
     print(f"OK: {resumo.get('OK', 0)}")
     print(f"Tempo total: {formatar_tempo(tempo_total)}")
     print("========================================")
+
+    if resumo.get("ORGAOS_SEM_ROBO"):
+        print("\n=== ÓRGÃOS/LINKS SEM ROBÔ CONFIGURADO ===")
+
+        for item in resumo["ORGAOS_SEM_ROBO"].values():
+            print("\n----------------------------------------")
+            print(f"Órgão: {item['nome']}")
+            print(f"Total de processos: {item['total']}")
+            print(f"URL: {item['url']}")
 
 
 def validar_orgaos_importados():
@@ -95,11 +121,17 @@ async def monitorar_processos_ativos():
         return
 
     for processo in processos:
-        resultado = await rotear_consulta_processo(processo)
+        resultado = await rotear_consulta_processo(
+            processo=processo,
+            modo_silencioso_sem_robo=True,
+        )
 
         status = resultado.get("status", "OK")
 
         incrementar_resumo(resumo, status)
+
+        if status == STATUS_SEM_ROBO_CONFIGURADO:
+            registrar_orgao_sem_robo(resumo, processo)
 
     exibir_resumo_execucao(resumo, inicio_execucao)
 
@@ -136,7 +168,10 @@ async def monitorar_um_processo_teste():
 
     processo = processos[indice_escolhido - 1]
 
-    resultado = await rotear_consulta_processo(processo)
+    resultado = await rotear_consulta_processo(
+        processo=processo,
+        modo_silencioso_sem_robo=False,
+    )
 
     print("\n=== RESUMO DO TESTE ===")
     print(f"Processo: {processo.get('numero_processo')}")
@@ -144,20 +179,20 @@ async def monitorar_um_processo_teste():
     print(f"Mensagem: {resultado.get('mensagem')}")
 
 
-async def rotear_consulta_processo(processo):
+async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
     processo_id = processo.get("id")
     numero_processo = processo.get("numero_processo")
     chave_robo = processo.get("chave_robo")
 
-    print("\n========================================")
-    print(f"Processo ID: {processo_id}")
-    print(f"Número: {numero_processo}")
-    print(f"Empresa: {processo.get('empresa')}")
-    print(f"Município: {processo.get('municipio')}")
-    print(f"Órgão: {processo.get('nome_orgao')}")
-    print(f"Robô: {chave_robo}")
-
     if chave_robo == "curitiba":
+        print("\n========================================")
+        print(f"Processo ID: {processo_id}")
+        print(f"Número: {numero_processo}")
+        print(f"Empresa: {processo.get('empresa')}")
+        print(f"Município: {processo.get('municipio')}")
+        print(f"Órgão: {processo.get('nome_orgao')}")
+        print(f"Robô: {chave_robo}")
+
         try:
             resultado = await consultar_processo_curitiba(processo)
 
@@ -196,7 +231,15 @@ async def rotear_consulta_processo(processo):
         mensagem=f"Não existe robô configurado para a chave: {chave_robo}",
     )
 
-    print("Status final: SEM_ROBO_CONFIGURADO")
+    if not modo_silencioso_sem_robo:
+        print("\n========================================")
+        print(f"Processo ID: {processo_id}")
+        print(f"Número: {numero_processo}")
+        print(f"Empresa: {processo.get('empresa')}")
+        print(f"Município: {processo.get('municipio')}")
+        print(f"Órgão: {processo.get('nome_orgao')}")
+        print(f"Robô: {chave_robo}")
+        print("Status final: SEM_ROBO_CONFIGURADO")
 
     return {
         "status": STATUS_SEM_ROBO_CONFIGURADO,
