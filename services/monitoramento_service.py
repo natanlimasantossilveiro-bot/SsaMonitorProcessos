@@ -8,6 +8,8 @@ from database.repositories import (
 
 from robots.curitiba.robot import consultar_processo_curitiba
 
+from services.relatorio_execucao_service import salvar_relatorio_execucao
+
 
 STATUS_SEM_ROBO_CONFIGURADO = "SEM_ROBO_CONFIGURADO"
 STATUS_ERRO_CONSULTA = "ERRO_CONSULTA"
@@ -24,6 +26,19 @@ def criar_resumo_execucao():
         "SEM_ROBO_CONFIGURADO": 0,
         "OK": 0,
         "ORGAOS_SEM_ROBO": {},
+    }
+
+
+def criar_evento_processo(processo, resultado):
+    return {
+        "processo_id": processo.get("id"),
+        "numero_processo": processo.get("numero_processo"),
+        "empresa": processo.get("empresa"),
+        "municipio": processo.get("municipio"),
+        "orgao": processo.get("nome_orgao"),
+        "chave_robo": processo.get("chave_robo"),
+        "status": resultado.get("status"),
+        "mensagem": resultado.get("mensagem"),
     }
 
 
@@ -107,6 +122,7 @@ def validar_orgaos_importados():
 async def monitorar_processos_ativos():
     inicio_execucao = datetime.now()
     resumo = criar_resumo_execucao()
+    eventos_processos = []
 
     processos = listar_processos_ativos_com_orgao()
 
@@ -117,7 +133,17 @@ async def monitorar_processos_ativos():
 
     if not processos:
         print("Nenhum processo ativo encontrado.")
+
         exibir_resumo_execucao(resumo, inicio_execucao)
+
+        caminho_relatorio = salvar_relatorio_execucao(
+            resumo=resumo,
+            inicio_execucao=inicio_execucao,
+            eventos_processos=eventos_processos,
+        )
+
+        print(f"\nRelatório salvo em: {caminho_relatorio}")
+
         return
 
     for processo in processos:
@@ -130,10 +156,22 @@ async def monitorar_processos_ativos():
 
         incrementar_resumo(resumo, status)
 
+        eventos_processos.append(
+            criar_evento_processo(processo, resultado)
+        )
+
         if status == STATUS_SEM_ROBO_CONFIGURADO:
             registrar_orgao_sem_robo(resumo, processo)
 
     exibir_resumo_execucao(resumo, inicio_execucao)
+
+    caminho_relatorio = salvar_relatorio_execucao(
+        resumo=resumo,
+        inicio_execucao=inicio_execucao,
+        eventos_processos=eventos_processos,
+    )
+
+    print(f"\nRelatório salvo em: {caminho_relatorio}")
 
 
 async def monitorar_um_processo_teste():
