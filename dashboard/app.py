@@ -20,6 +20,25 @@ def buscar_dados_dashboard():
     total_processos = cursor.fetchone()["total"]
 
     cursor.execute("""
+        SELECT COUNT(*) AS total
+        FROM processos
+        WHERE status_atual IS NOT NULL
+        AND status_atual <> '';
+    """)
+    processos_monitorados = cursor.fetchone()["total"]
+
+    cursor.execute("""
+        SELECT COUNT(*) AS total
+        FROM processos p
+        INNER JOIN orgaos o ON p.orgao_id = o.id
+        WHERE o.chave_robo IS NULL;
+    """)
+    processos_sem_robo = cursor.fetchone()["total"]
+
+    cursor.execute("SELECT COUNT(*) AS total FROM orgaos;")
+    total_orgaos = cursor.fetchone()["total"]
+
+    cursor.execute("""
         SELECT 
             COALESCE(status_atual, 'Sem status') AS status,
             COUNT(*) AS total
@@ -28,6 +47,17 @@ def buscar_dados_dashboard():
         ORDER BY total DESC;
     """)
     processos_por_status = cursor.fetchall()
+
+    cursor.execute("""
+        SELECT
+            o.nome AS orgao,
+            COUNT(p.id) AS total_processos
+        FROM processos p
+        INNER JOIN orgaos o ON p.orgao_id = o.id
+        GROUP BY o.id, o.nome
+        ORDER BY total_processos DESC;
+    """)
+    ranking_orgaos = cursor.fetchall()
 
     cursor.execute("""
         SELECT
@@ -77,58 +107,82 @@ def buscar_dados_dashboard():
 
     return {
         "total_processos": total_processos,
+        "processos_monitorados": processos_monitorados,
+        "processos_sem_robo": processos_sem_robo,
+        "total_orgaos": total_orgaos,
         "processos_por_status": processos_por_status,
+        "ranking_orgaos": ranking_orgaos,
         "ultimas_movimentacoes": ultimas_movimentacoes,
         "orgaos_sem_robo": orgaos_sem_robo,
         "ultimas_consultas": ultimas_consultas,
     }
 
 
+def gerar_linhas_tabela(lista, colunas):
+    if not lista:
+        return f"""
+            <tr>
+                <td colspan="{len(colunas)}" class="vazio">Nenhum registro encontrado.</td>
+            </tr>
+        """
+
+    html = ""
+
+    for item in lista:
+        html += "<tr>"
+
+        for coluna in colunas:
+            valor = item.get(coluna)
+
+            if valor is None:
+                valor = ""
+
+            html += f"<td>{valor}</td>"
+
+        html += "</tr>"
+
+    return html
+
+
 def gerar_html():
     dados = buscar_dados_dashboard()
 
-    html_status = ""
-    for item in dados["processos_por_status"]:
-        html_status += f"""
-            <tr>
-                <td>{item["status"]}</td>
-                <td>{item["total"]}</td>
-            </tr>
-        """
+    html_status = gerar_linhas_tabela(
+        dados["processos_por_status"],
+        ["status", "total"]
+    )
 
-    html_movimentacoes = ""
-    for item in dados["ultimas_movimentacoes"]:
-        html_movimentacoes += f"""
-            <tr>
-                <td>{item["numero_processo"]}</td>
-                <td>{item["empresa"]}</td>
-                <td>{item["orgao"]}</td>
-                <td>{item["data_movimento"]}</td>
-                <td>{item["descricao"]}</td>
-            </tr>
-        """
+    html_ranking_orgaos = gerar_linhas_tabela(
+        dados["ranking_orgaos"],
+        ["orgao", "total_processos"]
+    )
 
-    html_orgaos_sem_robo = ""
-    for item in dados["orgaos_sem_robo"]:
-        html_orgaos_sem_robo += f"""
-            <tr>
-                <td>{item["nome"]}</td>
-                <td>{item["total_processos"]}</td>
-                <td>{item["url"]}</td>
-            </tr>
-        """
+    html_movimentacoes = gerar_linhas_tabela(
+        dados["ultimas_movimentacoes"],
+        [
+            "numero_processo",
+            "empresa",
+            "orgao",
+            "data_movimento",
+            "descricao",
+        ]
+    )
 
-    html_consultas = ""
-    for item in dados["ultimas_consultas"]:
-        html_consultas += f"""
-            <tr>
-                <td>{item["numero_processo"]}</td>
-                <td>{item["empresa"]}</td>
-                <td>{item["orgao"]}</td>
-                <td>{item["status_consulta"]}</td>
-                <td>{item["data_consulta"]}</td>
-            </tr>
-        """
+    html_orgaos_sem_robo = gerar_linhas_tabela(
+        dados["orgaos_sem_robo"],
+        ["nome", "total_processos", "url"]
+    )
+
+    html_consultas = gerar_linhas_tabela(
+        dados["ultimas_consultas"],
+        [
+            "numero_processo",
+            "empresa",
+            "orgao",
+            "status_consulta",
+            "data_consulta",
+        ]
+    )
 
     return f"""
     <!DOCTYPE html>
@@ -137,55 +191,85 @@ def gerar_html():
         <meta charset="UTF-8">
         <title>SSA Monitor Processos</title>
         <style>
+            * {{
+                box-sizing: border-box;
+            }}
+
             body {{
                 font-family: Arial, sans-serif;
                 background: #f4f6f8;
                 margin: 0;
-                padding: 20px;
-                color: #222;
+                padding: 24px;
+                color: #111827;
             }}
 
             h1 {{
                 margin-bottom: 5px;
+                font-size: 32px;
+            }}
+
+            h2 {{
+                margin-top: 0;
             }}
 
             .subtitulo {{
-                color: #666;
+                color: #6b7280;
                 margin-bottom: 25px;
             }}
 
             .cards {{
-                display: flex;
-                gap: 20px;
+                display: grid;
+                grid-template-columns: repeat(4, minmax(180px, 1fr));
+                gap: 18px;
                 margin-bottom: 25px;
-                flex-wrap: wrap;
             }}
 
             .card {{
                 background: white;
                 padding: 20px;
-                border-radius: 10px;
+                border-radius: 12px;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-                min-width: 220px;
+                border-left: 5px solid #2563eb;
+            }}
+
+            .card.alerta {{
+                border-left-color: #f97316;
+            }}
+
+            .card.sucesso {{
+                border-left-color: #16a34a;
+            }}
+
+            .card.neutro {{
+                border-left-color: #6b7280;
             }}
 
             .card h2 {{
                 margin: 0;
-                font-size: 32px;
+                font-size: 34px;
                 color: #0f172a;
             }}
 
             .card p {{
-                margin: 5px 0 0;
-                color: #666;
+                margin: 6px 0 0;
+                color: #6b7280;
+                font-size: 14px;
+            }}
+
+            .grid-duplo {{
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                margin-bottom: 25px;
             }}
 
             section {{
                 background: white;
                 padding: 20px;
-                border-radius: 10px;
+                border-radius: 12px;
                 margin-bottom: 25px;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                overflow-x: auto;
             }}
 
             table {{
@@ -199,10 +283,22 @@ def gerar_html():
                 padding: 10px;
                 text-align: left;
                 font-size: 14px;
+                vertical-align: top;
             }}
 
             th {{
                 background: #f8fafc;
+                color: #374151;
+            }}
+
+            tr:hover td {{
+                background: #f9fafb;
+            }}
+
+            .vazio {{
+                text-align: center;
+                color: #6b7280;
+                padding: 20px;
             }}
 
             .footer {{
@@ -211,33 +307,85 @@ def gerar_html():
                 margin-top: 30px;
                 font-size: 13px;
             }}
+
+            @media (max-width: 1000px) {{
+                .cards {{
+                    grid-template-columns: repeat(2, 1fr);
+                }}
+
+                .grid-duplo {{
+                    grid-template-columns: 1fr;
+                }}
+            }}
+
+            @media (max-width: 600px) {{
+                .cards {{
+                    grid-template-columns: 1fr;
+                }}
+
+                body {{
+                    padding: 12px;
+                }}
+            }}
         </style>
     </head>
     <body>
         <h1>SSA Monitor Processos</h1>
-        <div class="subtitulo">Dashboard inicial de acompanhamento dos processos monitorados</div>
+        <div class="subtitulo">Dashboard gerencial de acompanhamento dos processos monitorados</div>
 
         <div class="cards">
             <div class="card">
                 <h2>{dados["total_processos"]}</h2>
-                <p>Total de processos cadastrados</p>
+                <p>Total de processos</p>
+            </div>
+
+            <div class="card sucesso">
+                <h2>{dados["processos_monitorados"]}</h2>
+                <p>Processos monitorados</p>
+            </div>
+
+            <div class="card alerta">
+                <h2>{dados["processos_sem_robo"]}</h2>
+                <p>Sem robô configurado</p>
+            </div>
+
+            <div class="card neutro">
+                <h2>{dados["total_orgaos"]}</h2>
+                <p>Total de órgãos/links</p>
             </div>
         </div>
 
-        <section>
-            <h2>Processos por status atual</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Status</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {html_status}
-                </tbody>
-            </table>
-        </section>
+        <div class="grid-duplo">
+            <section>
+                <h2>Processos por status atual</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {html_status}
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h2>Ranking de órgãos por processos</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Órgão</th>
+                            <th>Total de processos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {html_ranking_orgaos}
+                    </tbody>
+                </table>
+            </section>
+        </div>
 
         <section>
             <h2>Últimas movimentações</h2>
@@ -253,22 +401,6 @@ def gerar_html():
                 </thead>
                 <tbody>
                     {html_movimentacoes}
-                </tbody>
-            </table>
-        </section>
-
-        <section>
-            <h2>Órgãos/links sem robô configurado</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Órgão</th>
-                        <th>Total de processos</th>
-                        <th>URL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {html_orgaos_sem_robo}
                 </tbody>
             </table>
         </section>
@@ -291,8 +423,24 @@ def gerar_html():
             </table>
         </section>
 
+        <section>
+            <h2>Órgãos/links sem robô configurado</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Órgão</th>
+                        <th>Total de processos</th>
+                        <th>URL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {html_orgaos_sem_robo}
+                </tbody>
+            </table>
+        </section>
+
         <div class="footer">
-            SSA Monitor Processos - primeira versão do dashboard
+            SSA Monitor Processos - Dashboard Web
         </div>
     </body>
     </html>
