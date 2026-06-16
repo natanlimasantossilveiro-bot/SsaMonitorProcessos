@@ -9,6 +9,10 @@ from services.monitoramento_service import (
     monitorar_um_processo_teste,
 )
 
+from services.captcha_simulador_service import (
+    simular_resposta_captcha,
+)
+
 
 def importar_planilha():
     resultado = importar_planilha_base("Planilha_Base.xlsx")
@@ -56,6 +60,7 @@ def exibir_menu():
     print("5 - Abrir pasta de relatórios")
     print("6 - Abrir pasta de evidências")
     print("7 - Abrir pasta de captchas")
+    print("8 - Simular resposta de captcha")
     print("0 - Sair")
 
     return input("\nEscolha uma opção: ").strip()
@@ -85,6 +90,9 @@ async def main():
 
         elif opcao == "7":
             abrir_pasta_captchas()
+
+        elif opcao == "8":
+            simular_resposta_captcha()
 
         elif opcao == "0":
             print("\nEncerrando sistema...")
