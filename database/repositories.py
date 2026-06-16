@@ -285,6 +285,46 @@ def atualizar_dados_processo(
     conexao.close()
 
 
+def atualizar_caminho_solicitacao_captcha(processo_id, caminho_solicitacao):
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    query = """
+        UPDATE processos
+        SET caminho_solicitacao_captcha = %s
+        WHERE id = %s;
+    """
+
+    cursor.execute(
+        query,
+        (
+            caminho_solicitacao,
+            processo_id,
+        )
+    )
+
+    conexao.commit()
+    cursor.close()
+    conexao.close()
+
+
+def limpar_caminho_solicitacao_captcha(processo_id):
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    query = """
+        UPDATE processos
+        SET caminho_solicitacao_captcha = NULL
+        WHERE id = %s;
+    """
+
+    cursor.execute(query, (processo_id,))
+
+    conexao.commit()
+    cursor.close()
+    conexao.close()
+
+
 def movimentacao_ja_existe(
     processo_id,
     data_movimento,

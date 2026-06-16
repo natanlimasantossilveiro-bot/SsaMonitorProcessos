@@ -4,6 +4,8 @@ from database.repositories import (
     listar_orgaos,
     listar_processos_ativos_com_orgao,
     registrar_historico_consulta,
+    atualizar_caminho_solicitacao_captcha,
+    limpar_caminho_solicitacao_captcha,
 )
 
 from robots.curitiba.robot import consultar_processo_curitiba
@@ -15,6 +17,7 @@ from services.relatorio_execucao_service import salvar_relatorio_execucao
 STATUS_SEM_ROBO_CONFIGURADO = "SEM_ROBO_CONFIGURADO"
 STATUS_ERRO_CONSULTA = "ERRO_CONSULTA"
 STATUS_PENDENTE_INTEGRACAO_CAPTCHA = "PENDENTE_INTEGRACAO_CAPTCHA"
+STATUS_CAPTCHA_RESOLVIDO_FLUXO_PENDENTE = "CAPTCHA_RESOLVIDO_FLUXO_PENDENTE"
 
 
 def criar_resumo_execucao():
@@ -27,6 +30,7 @@ def criar_resumo_execucao():
         "SISTEMA_FORA": 0,
         "SEM_ROBO_CONFIGURADO": 0,
         "PENDENTE_INTEGRACAO_CAPTCHA": 0,
+        "CAPTCHA_RESOLVIDO_FLUXO_PENDENTE": 0,
         "OK": 0,
         "ORGAOS_SEM_ROBO": {},
     }
@@ -91,6 +95,10 @@ def exibir_resumo_execucao(resumo, inicio_execucao):
     print(f"Sistema fora: {resumo.get('SISTEMA_FORA', 0)}")
     print(f"Sem robô configurado: {resumo.get('SEM_ROBO_CONFIGURADO', 0)}")
     print(f"Pendente integração captcha: {resumo.get('PENDENTE_INTEGRACAO_CAPTCHA', 0)}")
+    print(
+        "Captcha resolvido com fluxo pendente: "
+        f"{resumo.get('CAPTCHA_RESOLVIDO_FLUXO_PENDENTE', 0)}"
+    )
     print(f"OK: {resumo.get('OK', 0)}")
     print(f"Tempo total: {formatar_tempo(tempo_total)}")
     print("========================================")
@@ -121,6 +129,31 @@ def validar_orgaos_importados():
         print(f"Tipo: {orgao.get('tipo')}")
         print(f"URL: {orgao.get('url')}")
         print(f"Chave robô: {orgao.get('chave_robo')}")
+
+
+def obter_caminho_solicitacao_resultado(resultado):
+    dados = resultado.get("dados") or {}
+
+    return (
+        dados.get("caminho_solicitacao")
+        or resultado.get("caminho_solicitacao")
+    )
+
+
+def tratar_estado_captcha_processo(processo_id, status, resultado):
+    if status == STATUS_PENDENTE_INTEGRACAO_CAPTCHA:
+        caminho_solicitacao = obter_caminho_solicitacao_resultado(resultado)
+
+        if caminho_solicitacao:
+            atualizar_caminho_solicitacao_captcha(
+                processo_id=processo_id,
+                caminho_solicitacao=caminho_solicitacao,
+            )
+
+        return
+
+    if status == STATUS_CAPTCHA_RESOLVIDO_FLUXO_PENDENTE:
+        limpar_caminho_solicitacao_captcha(processo_id)
 
 
 async def monitorar_processos_ativos():
@@ -241,6 +274,12 @@ async def consultar_com_robo(
 
         status = resultado.get("status", "OK")
         mensagem = resultado.get("mensagem", "")
+
+        tratar_estado_captcha_processo(
+            processo_id=processo_id,
+            status=status,
+            resultado=resultado,
+        )
 
         registrar_historico_consulta(
             processo_id=processo_id,
