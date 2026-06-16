@@ -1,9 +1,8 @@
-URL_PADRAO_ATENDE_NET = ""
+CAMPO_NUMERO = "input[aria-label='Número']"
+CAMPO_ANO = "input[aria-label='Ano']"
+CAMPO_CODIGO_VERIFICADOR = "input[aria-label='Cód. Verificador']"
 
-CAMPO_PROCESSO = ""
-CAMPO_CAPTCHA = ""
-IMAGEM_CAPTCHA = ""
-BOTAO_CONSULTAR = ""
+BOTAO_CONFIRMAR = "button:has-text('Confirmar')"
+BOTAO_LIMPAR = "button:has-text('Limpar')"
 
-SELETOR_RESULTADO = ""
-SELETOR_ERRO = ""
+TEXTO_CAPTCHA = "Verificação de acesso"
