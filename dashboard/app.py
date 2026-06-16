@@ -5,7 +5,21 @@ from urllib.parse import urlparse
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from database.connection import criar_conexao
+from dashboard.dashboard_repository import (
+    buscar_total_processos,
+    buscar_processos_monitorados,
+    buscar_processos_sem_robo,
+    buscar_total_orgaos,
+    buscar_processos_por_status,
+    buscar_ranking_orgaos,
+    buscar_ultimas_movimentacoes,
+    buscar_orgaos_sem_robo,
+    buscar_ultimas_consultas,
+)
+
+from dashboard.dashboard_html import (
+    gerar_linhas_tabela,
+)
 
 
 HOST = "localhost"
@@ -13,135 +27,17 @@ PORTA = 8000
 
 
 def buscar_dados_dashboard():
-    conexao = criar_conexao()
-    cursor = conexao.cursor(dictionary=True)
-
-    cursor.execute("SELECT COUNT(*) AS total FROM processos;")
-    total_processos = cursor.fetchone()["total"]
-
-    cursor.execute("""
-        SELECT COUNT(*) AS total
-        FROM processos
-        WHERE status_atual IS NOT NULL
-        AND status_atual <> '';
-    """)
-    processos_monitorados = cursor.fetchone()["total"]
-
-    cursor.execute("""
-        SELECT COUNT(*) AS total
-        FROM processos p
-        INNER JOIN orgaos o ON p.orgao_id = o.id
-        WHERE o.chave_robo IS NULL;
-    """)
-    processos_sem_robo = cursor.fetchone()["total"]
-
-    cursor.execute("SELECT COUNT(*) AS total FROM orgaos;")
-    total_orgaos = cursor.fetchone()["total"]
-
-    cursor.execute("""
-        SELECT 
-            COALESCE(status_atual, 'Sem status') AS status,
-            COUNT(*) AS total
-        FROM processos
-        GROUP BY COALESCE(status_atual, 'Sem status')
-        ORDER BY total DESC;
-    """)
-    processos_por_status = cursor.fetchall()
-
-    cursor.execute("""
-        SELECT
-            o.nome AS orgao,
-            COUNT(p.id) AS total_processos
-        FROM processos p
-        INNER JOIN orgaos o ON p.orgao_id = o.id
-        GROUP BY o.id, o.nome
-        ORDER BY total_processos DESC;
-    """)
-    ranking_orgaos = cursor.fetchall()
-
-    cursor.execute("""
-        SELECT
-            p.numero_processo,
-            p.empresa,
-            o.nome AS orgao,
-            m.data_movimento,
-            m.descricao
-        FROM movimentacoes m
-        INNER JOIN processos p ON m.processo_id = p.id
-        INNER JOIN orgaos o ON p.orgao_id = o.id
-        ORDER BY m.data_movimento DESC, m.id DESC
-        LIMIT 10;
-    """)
-    ultimas_movimentacoes = cursor.fetchall()
-
-    cursor.execute("""
-        SELECT
-            o.nome,
-            o.url,
-            COUNT(p.id) AS total_processos
-        FROM orgaos o
-        INNER JOIN processos p ON p.orgao_id = o.id
-        WHERE o.chave_robo IS NULL
-        GROUP BY o.id, o.nome, o.url
-        ORDER BY total_processos DESC;
-    """)
-    orgaos_sem_robo = cursor.fetchall()
-
-    cursor.execute("""
-        SELECT
-            p.numero_processo,
-            p.empresa,
-            o.nome AS orgao,
-            h.status_consulta,
-            h.data_consulta
-        FROM historico_consultas h
-        INNER JOIN processos p ON h.processo_id = p.id
-        INNER JOIN orgaos o ON p.orgao_id = o.id
-        ORDER BY h.id DESC
-        LIMIT 10;
-    """)
-    ultimas_consultas = cursor.fetchall()
-
-    cursor.close()
-    conexao.close()
-
     return {
-        "total_processos": total_processos,
-        "processos_monitorados": processos_monitorados,
-        "processos_sem_robo": processos_sem_robo,
-        "total_orgaos": total_orgaos,
-        "processos_por_status": processos_por_status,
-        "ranking_orgaos": ranking_orgaos,
-        "ultimas_movimentacoes": ultimas_movimentacoes,
-        "orgaos_sem_robo": orgaos_sem_robo,
-        "ultimas_consultas": ultimas_consultas,
+        "total_processos": buscar_total_processos(),
+        "processos_monitorados": buscar_processos_monitorados(),
+        "processos_sem_robo": buscar_processos_sem_robo(),
+        "total_orgaos": buscar_total_orgaos(),
+        "processos_por_status": buscar_processos_por_status(),
+        "ranking_orgaos": buscar_ranking_orgaos(),
+        "ultimas_movimentacoes": buscar_ultimas_movimentacoes(),
+        "orgaos_sem_robo": buscar_orgaos_sem_robo(),
+        "ultimas_consultas": buscar_ultimas_consultas(),
     }
-
-
-def gerar_linhas_tabela(lista, colunas):
-    if not lista:
-        return f"""
-            <tr>
-                <td colspan="{len(colunas)}" class="vazio">Nenhum registro encontrado.</td>
-            </tr>
-        """
-
-    html = ""
-
-    for item in lista:
-        html += "<tr>"
-
-        for coluna in colunas:
-            valor = item.get(coluna)
-
-            if valor is None:
-                valor = ""
-
-            html += f"<td>{valor}</td>"
-
-        html += "</tr>"
-
-    return html
 
 
 def gerar_html():
