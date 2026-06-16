@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 from datetime import datetime
 
 
@@ -65,6 +66,94 @@ def criar_solicitacao_captcha(
         json.dump(dados, arquivo, ensure_ascii=False, indent=4)
 
     return caminho_arquivo
+
+
+def obter_nome_arquivo(caminho_arquivo):
+    return os.path.basename(caminho_arquivo)
+
+
+def obter_caminho_resolvido(caminho_solicitacao):
+    nome_arquivo = obter_nome_arquivo(caminho_solicitacao)
+    return os.path.join(PASTA_RESOLVIDOS, nome_arquivo)
+
+
+def obter_caminho_processado(caminho_solicitacao):
+    nome_arquivo = obter_nome_arquivo(caminho_solicitacao)
+    return os.path.join(PASTA_PROCESSADOS, nome_arquivo)
+
+
+def ler_json(caminho_arquivo):
+    with open(caminho_arquivo, "r", encoding="utf-8") as arquivo:
+        return json.load(arquivo)
+
+
+def salvar_json(caminho_arquivo, dados):
+    with open(caminho_arquivo, "w", encoding="utf-8") as arquivo:
+        json.dump(dados, arquivo, ensure_ascii=False, indent=4)
+
+
+def buscar_resposta_captcha_resolvido(caminho_solicitacao):
+    """
+    Simula a futura API do colaborador.
+
+    Fluxo esperado:
+    1. O sistema cria um arquivo em captchas/pendentes.
+    2. A API/colaborador cria um arquivo com o mesmo nome em captchas/resolvidos.
+    3. Esse arquivo resolvido deve conter:
+       {
+           "status": "RESOLVIDO",
+           "captcha": {
+               "resposta": "ABC123"
+           }
+       }
+    """
+
+    criar_pastas_captcha()
+
+    caminho_resolvido = obter_caminho_resolvido(caminho_solicitacao)
+
+    if not os.path.exists(caminho_resolvido):
+        return {
+            "status": "PENDENTE",
+            "mensagem": "Captcha ainda não foi resolvido.",
+            "resposta": None,
+            "caminho_resolvido": caminho_resolvido,
+        }
+
+    dados_resolvidos = ler_json(caminho_resolvido)
+
+    resposta = (
+        dados_resolvidos
+        .get("captcha", {})
+        .get("resposta")
+    )
+
+    if not resposta:
+        return {
+            "status": "RESOLVIDO_SEM_RESPOSTA",
+            "mensagem": "Arquivo resolvido encontrado, mas sem resposta do captcha.",
+            "resposta": None,
+            "caminho_resolvido": caminho_resolvido,
+        }
+
+    caminho_processado = obter_caminho_processado(caminho_solicitacao)
+
+    dados_resolvidos["status"] = "PROCESSADO"
+    dados_resolvidos["processado_em"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    salvar_json(caminho_resolvido, dados_resolvidos)
+
+    shutil.move(caminho_resolvido, caminho_processado)
+
+    if os.path.exists(caminho_solicitacao):
+        os.remove(caminho_solicitacao)
+
+    return {
+        "status": "RESOLVIDO",
+        "mensagem": "Captcha resolvido e movido para processados.",
+        "resposta": resposta,
+        "caminho_processado": caminho_processado,
+    }
 
 
 async def solicitar_resolucao_captcha(
