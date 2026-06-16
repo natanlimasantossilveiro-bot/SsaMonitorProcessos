@@ -3,6 +3,8 @@ import json
 import shutil
 from datetime import datetime
 
+from services.captcha_api_client import enviar_captcha_para_api
+
 
 PASTA_CAPTCHAS = "captchas"
 PASTA_PENDENTES = os.path.join(PASTA_CAPTCHAS, "pendentes")
@@ -93,21 +95,6 @@ def salvar_json(caminho_arquivo, dados):
 
 
 def buscar_resposta_captcha_resolvido(caminho_solicitacao):
-    """
-    Simula a futura API do colaborador.
-
-    Fluxo esperado:
-    1. O sistema cria um arquivo em captchas/pendentes.
-    2. A API/colaborador cria um arquivo com o mesmo nome em captchas/resolvidos.
-    3. Esse arquivo resolvido deve conter:
-       {
-           "status": "RESOLVIDO",
-           "captcha": {
-               "resposta": "ABC123"
-           }
-       }
-    """
-
     criar_pastas_captcha()
 
     caminho_resolvido = obter_caminho_resolvido(caminho_solicitacao)
@@ -173,12 +160,29 @@ async def solicitar_resolucao_captcha(
 
     print(f"Solicitação de captcha criada: {caminho_solicitacao}")
 
+    resultado_api = await enviar_captcha_para_api(
+        processo=processo,
+        caminho_imagem=caminho_imagem,
+    )
+
+    dados_solicitacao = ler_json(caminho_solicitacao)
+
+    dados_solicitacao["api"] = {
+        "status": resultado_api.get("status"),
+        "mensagem": resultado_api.get("mensagem"),
+        "protocolo_api": resultado_api.get("protocolo_api"),
+        "enviado_em": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+    }
+
+    salvar_json(caminho_solicitacao, dados_solicitacao)
+
     return {
         "status": "PENDENTE_INTEGRACAO_CAPTCHA",
         "mensagem": (
-            "Captcha detectado. Solicitação criada para futura integração "
-            f"com API: {caminho_solicitacao}"
+            "Captcha detectado. Solicitação criada e tentativa de envio "
+            f"para API registrada: {caminho_solicitacao}"
         ),
         "resposta": None,
         "caminho_solicitacao": caminho_solicitacao,
+        "api": resultado_api,
     }

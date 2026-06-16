@@ -1,25 +1,12 @@
 import os
+import httpx
 
 
 CAPTCHA_API_URL = os.getenv("CAPTCHA_API_URL")
 CAPTCHA_API_TOKEN = os.getenv("CAPTCHA_API_TOKEN")
 
 
-async def enviar_captcha_para_api(
-    processo,
-    caminho_imagem,
-):
-    """
-    Cliente preparado para futura API de resolução de captcha.
-
-    Por enquanto, não envia nada de verdade.
-    Quando a API existir, vamos implementar aqui:
-    - POST para API
-    - envio da imagem
-    - envio dos dados do processo
-    - retorno do protocolo/id da solicitação
-    """
-
+async def enviar_captcha_para_api(processo, caminho_imagem):
     if not CAPTCHA_API_URL:
         return {
             "status": "API_NAO_CONFIGURADA",
@@ -27,8 +14,47 @@ async def enviar_captcha_para_api(
             "protocolo_api": None,
         }
 
-    return {
-        "status": "PENDENTE_IMPLEMENTACAO",
-        "mensagem": "Cliente da API criado, mas integração HTTP ainda não implementada.",
-        "protocolo_api": None,
+    headers = {}
+
+    if CAPTCHA_API_TOKEN:
+        headers["Authorization"] = f"Bearer {CAPTCHA_API_TOKEN}"
+
+    dados = {
+        "processo_id": processo.get("id"),
+        "numero_processo": processo.get("numero_processo"),
+        "empresa": processo.get("empresa"),
+        "municipio": processo.get("municipio"),
+        "orgao": processo.get("nome_orgao"),
     }
+
+    try:
+        with open(caminho_imagem, "rb") as imagem:
+            arquivos = {
+                "captcha": imagem,
+            }
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                resposta = await client.post(
+                    CAPTCHA_API_URL,
+                    data=dados,
+                    files=arquivos,
+                    headers=headers,
+                )
+
+        resposta.raise_for_status()
+        dados_resposta = resposta.json()
+
+        return {
+            "status": "ENVIADO_API",
+            "mensagem": "Captcha enviado para API com sucesso.",
+            "protocolo_api": dados_resposta.get("protocolo")
+            or dados_resposta.get("id")
+            or dados_resposta.get("protocolo_api"),
+        }
+
+    except Exception as erro:
+        return {
+            "status": "ERRO_API_CAPTCHA",
+            "mensagem": f"Erro ao enviar captcha para API: {erro}",
+            "protocolo_api": None,
+        }
