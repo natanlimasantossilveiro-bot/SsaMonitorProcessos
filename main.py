@@ -38,6 +38,15 @@ def abrir_pasta_evidencias():
     os.startfile(os.path.abspath(pasta))
 
 
+def abrir_pasta_captchas():
+    pasta = "captchas"
+
+    if not os.path.exists(pasta):
+        os.makedirs(pasta)
+
+    os.startfile(os.path.abspath(pasta))
+
+
 def exibir_menu():
     print("\n=== SSA MONITOR PROCESSOS ===")
     print("1 - Importar planilha base")
@@ -46,6 +55,7 @@ def exibir_menu():
     print("4 - Monitorar apenas 1 processo para teste")
     print("5 - Abrir pasta de relatórios")
     print("6 - Abrir pasta de evidências")
+    print("7 - Abrir pasta de captchas")
     print("0 - Sair")
 
     return input("\nEscolha uma opção: ").strip()
@@ -72,6 +82,9 @@ async def main():
 
         elif opcao == "6":
             abrir_pasta_evidencias()
+
+        elif opcao == "7":
+            abrir_pasta_captchas()
 
         elif opcao == "0":
             print("\nEncerrando sistema...")
