@@ -7,12 +7,14 @@ from database.repositories import (
 )
 
 from robots.curitiba.robot import consultar_processo_curitiba
+from robots.atende_net.robot import consultar_processo_atende_net
 
 from services.relatorio_execucao_service import salvar_relatorio_execucao
 
 
 STATUS_SEM_ROBO_CONFIGURADO = "SEM_ROBO_CONFIGURADO"
 STATUS_ERRO_CONSULTA = "ERRO_CONSULTA"
+STATUS_PENDENTE_INTEGRACAO_CAPTCHA = "PENDENTE_INTEGRACAO_CAPTCHA"
 
 
 def criar_resumo_execucao():
@@ -24,6 +26,7 @@ def criar_resumo_execucao():
         "ERRO_CONSULTA": 0,
         "SISTEMA_FORA": 0,
         "SEM_ROBO_CONFIGURADO": 0,
+        "PENDENTE_INTEGRACAO_CAPTCHA": 0,
         "OK": 0,
         "ORGAOS_SEM_ROBO": {},
     }
@@ -87,6 +90,7 @@ def exibir_resumo_execucao(resumo, inicio_execucao):
     print(f"Erro de consulta: {resumo.get('ERRO_CONSULTA', 0)}")
     print(f"Sistema fora: {resumo.get('SISTEMA_FORA', 0)}")
     print(f"Sem robô configurado: {resumo.get('SEM_ROBO_CONFIGURADO', 0)}")
+    print(f"Pendente integração captcha: {resumo.get('PENDENTE_INTEGRACAO_CAPTCHA', 0)}")
     print(f"OK: {resumo.get('OK', 0)}")
     print(f"Tempo total: {formatar_tempo(tempo_total)}")
     print("========================================")
@@ -217,51 +221,72 @@ async def monitorar_um_processo_teste():
     print(f"Mensagem: {resultado.get('mensagem')}")
 
 
+async def consultar_com_robo(
+    processo,
+    nome_robo,
+    funcao_consulta,
+):
+    processo_id = processo.get("id")
+
+    print("\n========================================")
+    print(f"Processo ID: {processo_id}")
+    print(f"Número: {processo.get('numero_processo')}")
+    print(f"Empresa: {processo.get('empresa')}")
+    print(f"Município: {processo.get('municipio')}")
+    print(f"Órgão: {processo.get('nome_orgao')}")
+    print(f"Robô: {nome_robo}")
+
+    try:
+        resultado = await funcao_consulta(processo)
+
+        status = resultado.get("status", "OK")
+        mensagem = resultado.get("mensagem", "")
+
+        registrar_historico_consulta(
+            processo_id=processo_id,
+            status=status,
+            mensagem=mensagem,
+        )
+
+        print(f"Status final: {status}")
+
+        return resultado
+
+    except Exception as erro:
+        mensagem = str(erro)
+
+        registrar_historico_consulta(
+            processo_id=processo_id,
+            status=STATUS_ERRO_CONSULTA,
+            mensagem=mensagem,
+        )
+
+        print(f"Erro ao consultar processo: {mensagem}")
+
+        return {
+            "status": STATUS_ERRO_CONSULTA,
+            "mensagem": mensagem,
+        }
+
+
 async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
     processo_id = processo.get("id")
     numero_processo = processo.get("numero_processo")
     chave_robo = processo.get("chave_robo")
 
     if chave_robo == "curitiba":
-        print("\n========================================")
-        print(f"Processo ID: {processo_id}")
-        print(f"Número: {numero_processo}")
-        print(f"Empresa: {processo.get('empresa')}")
-        print(f"Município: {processo.get('municipio')}")
-        print(f"Órgão: {processo.get('nome_orgao')}")
-        print(f"Robô: {chave_robo}")
+        return await consultar_com_robo(
+            processo=processo,
+            nome_robo="curitiba",
+            funcao_consulta=consultar_processo_curitiba,
+        )
 
-        try:
-            resultado = await consultar_processo_curitiba(processo)
-
-            status = resultado.get("status", "OK")
-            mensagem = resultado.get("mensagem", "")
-
-            registrar_historico_consulta(
-                processo_id=processo_id,
-                status=status,
-                mensagem=mensagem,
-            )
-
-            print(f"Status final: {status}")
-
-            return resultado
-
-        except Exception as erro:
-            mensagem = str(erro)
-
-            registrar_historico_consulta(
-                processo_id=processo_id,
-                status=STATUS_ERRO_CONSULTA,
-                mensagem=mensagem,
-            )
-
-            print(f"Erro ao consultar processo: {mensagem}")
-
-            return {
-                "status": STATUS_ERRO_CONSULTA,
-                "mensagem": mensagem,
-            }
+    if chave_robo == "atende_net":
+        return await consultar_com_robo(
+            processo=processo,
+            nome_robo="atende_net",
+            funcao_consulta=consultar_processo_atende_net,
+        )
 
     registrar_historico_consulta(
         processo_id=processo_id,
