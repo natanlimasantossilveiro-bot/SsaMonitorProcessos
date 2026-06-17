@@ -1,8 +1,10 @@
-CAMPO_NUMERO = "input[aria-label='Número']"
-CAMPO_ANO = "input[aria-label='Ano']"
-CAMPO_CODIGO_VERIFICADOR = "input[aria-label='Cód. Verificador']"
+CAMPO_CAPTCHA = None
 
-BOTAO_CONFIRMAR = "button:has-text('Confirmar')"
+CAMPO_NUMERO = "input[name='numero']"
+CAMPO_ANO = "input[name='ano']"
+CAMPO_CODIGO_VERIFICADOR = "input[name='codigo_verificador']"
+
+BOTAO_CONFIRMAR = "button[name='confirmar']"
 BOTAO_LIMPAR = "button:has-text('Limpar')"
 
 TEXTO_CAPTCHA = "Verificação de acesso"

@@ -3,7 +3,10 @@ import json
 import shutil
 from datetime import datetime
 
-from services.captcha_api_client import enviar_captcha_para_api
+from services.captcha_api_client import (
+    enviar_captcha_para_api,
+    consultar_resultado_captcha_api,
+)
 
 
 PASTA_CAPTCHAS = "captchas"
@@ -94,31 +97,73 @@ def salvar_json(caminho_arquivo, dados):
         json.dump(dados, arquivo, ensure_ascii=False, indent=4)
 
 
-def buscar_resposta_captcha_resolvido(caminho_solicitacao):
-    criar_pastas_captcha()
-
-    caminho_resolvido = obter_caminho_resolvido(caminho_solicitacao)
-
-    if not os.path.exists(caminho_resolvido):
-        return {
-            "status": "PENDENTE",
-            "mensagem": "Captcha ainda não foi resolvido.",
-            "resposta": None,
-            "caminho_resolvido": caminho_resolvido,
-        }
-
-    dados_resolvidos = ler_json(caminho_resolvido)
-
-    resposta = (
+def extrair_resposta_manual(dados_resolvidos):
+    return (
         dados_resolvidos
         .get("captcha", {})
         .get("resposta")
     )
 
+
+def extrair_protocolo_api(dados_solicitacao):
+    return (
+        dados_solicitacao
+        .get("api", {})
+        .get("protocolo_api")
+    )
+
+
+def montar_retorno_pendente(caminho_resolvido):
+    return {
+        "status": "PENDENTE",
+        "mensagem": "Captcha ainda não foi resolvido.",
+        "resposta": None,
+        "caminho_resolvido": caminho_resolvido,
+    }
+
+
+def finalizar_captcha_resolvido(
+    caminho_solicitacao,
+    dados_resolvidos,
+    resposta,
+):
+    caminho_processado = obter_caminho_processado(caminho_solicitacao)
+
+    dados_resolvidos["status"] = "PROCESSADO"
+    dados_resolvidos["processado_em"] = datetime.now().strftime(
+        "%d/%m/%Y %H:%M:%S"
+    )
+
+    dados_resolvidos.setdefault("captcha", {})
+    dados_resolvidos["captcha"]["resposta"] = resposta
+
+    salvar_json(caminho_solicitacao, dados_resolvidos)
+
+    shutil.move(caminho_solicitacao, caminho_processado)
+
+    return {
+        "status": "RESOLVIDO",
+        "mensagem": "Captcha resolvido e movido para processados.",
+        "resposta": resposta,
+        "caminho_processado": caminho_processado,
+    }
+
+
+def buscar_resposta_manual_resolvida(caminho_solicitacao):
+    caminho_resolvido = obter_caminho_resolvido(caminho_solicitacao)
+
+    if not os.path.exists(caminho_resolvido):
+        return None
+
+    dados_resolvidos = ler_json(caminho_resolvido)
+    resposta = extrair_resposta_manual(dados_resolvidos)
+
     if not resposta:
         return {
             "status": "RESOLVIDO_SEM_RESPOSTA",
-            "mensagem": "Arquivo resolvido encontrado, mas sem resposta do captcha.",
+            "mensagem": (
+                "Arquivo resolvido encontrado, mas sem resposta do captcha."
+            ),
             "resposta": None,
             "caminho_resolvido": caminho_resolvido,
         }
@@ -126,7 +171,9 @@ def buscar_resposta_captcha_resolvido(caminho_solicitacao):
     caminho_processado = obter_caminho_processado(caminho_solicitacao)
 
     dados_resolvidos["status"] = "PROCESSADO"
-    dados_resolvidos["processado_em"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    dados_resolvidos["processado_em"] = datetime.now().strftime(
+        "%d/%m/%Y %H:%M:%S"
+    )
 
     salvar_json(caminho_resolvido, dados_resolvidos)
 
@@ -141,6 +188,66 @@ def buscar_resposta_captcha_resolvido(caminho_solicitacao):
         "resposta": resposta,
         "caminho_processado": caminho_processado,
     }
+
+
+async def buscar_resposta_captcha_resolvido(caminho_solicitacao):
+    criar_pastas_captcha()
+
+    resultado_manual = buscar_resposta_manual_resolvida(
+        caminho_solicitacao
+    )
+
+    if resultado_manual:
+        return resultado_manual
+
+    caminho_resolvido = obter_caminho_resolvido(caminho_solicitacao)
+
+    if not os.path.exists(caminho_solicitacao):
+        return montar_retorno_pendente(caminho_resolvido)
+
+    dados_solicitacao = ler_json(caminho_solicitacao)
+
+    protocolo_api = extrair_protocolo_api(dados_solicitacao)
+
+    if not protocolo_api:
+        return montar_retorno_pendente(caminho_resolvido)
+
+    resultado_api = await consultar_resultado_captcha_api(protocolo_api)
+
+    dados_solicitacao.setdefault("api", {})
+    dados_solicitacao["api"]["ultimo_status_resultado"] = resultado_api.get(
+        "status"
+    )
+    dados_solicitacao["api"]["ultima_mensagem_resultado"] = resultado_api.get(
+        "mensagem"
+    )
+    dados_solicitacao["api"]["consultado_em"] = datetime.now().strftime(
+        "%d/%m/%Y %H:%M:%S"
+    )
+
+    salvar_json(caminho_solicitacao, dados_solicitacao)
+
+    if resultado_api.get("status") != "RESOLVIDO":
+        return {
+            "status": "PENDENTE",
+            "mensagem": resultado_api.get(
+                "mensagem",
+                "Captcha ainda não foi resolvido pela API.",
+            ),
+            "resposta": None,
+            "caminho_resolvido": caminho_resolvido,
+        }
+
+    resposta = resultado_api.get("resposta")
+
+    dados_solicitacao.setdefault("captcha", {})
+    dados_solicitacao["captcha"]["resposta"] = resposta
+
+    return finalizar_captcha_resolvido(
+        caminho_solicitacao=caminho_solicitacao,
+        dados_resolvidos=dados_solicitacao,
+        resposta=resposta,
+    )
 
 
 async def solicitar_resolucao_captcha(

@@ -1,0 +1,26 @@
+{
+    "status": "PROCESSADO",
+    "criado_em": "17/06/2026 16:09:34",
+    "processo": {
+        "id": 6,
+        "numero_processo": "13658",
+        "empresa": "RSV III",
+        "municipio": "Pinhais",
+        "orgao": "Pinhais",
+        "acesso": "https://pinhais.atende.net/autoatendimento/servicos/consulta-de-processo-digital/detalhar/1"
+    },
+    "captcha": {
+        "caminho_imagem": "evidencias/atende_net_captcha_6_13658_20260617_160922.png",
+        "resposta": "0cAFcWeA5PDq25Bohd4xFAjWBlcJ1nLqqQrmZucZ9v_lb4bEvYwqG-EmCym3y_6xmjzb8Riu2cuX9DD4jbtX9qGO6VjFr36SCOfOEpzFFr2UIFHWPhnRJUMF8Hn9gK7Y0Z37VtXDI7Ytt_Fxso4QFCnMjGTH-q_hDLkjK3qKWTtDEoikEt9R1MWPkIolKLaYEjxrbnJvgrAVcnbbbN2cAygadLCtM2pTklPoQuOcdZ-AGzv6sdR9EUNtfr1ucdmRruVwcWfDvbsOPx6ULZ-SDx5Ew6S_fwlJXH9IAkwX5SRUaVE4lNjR3G2kfFxT74_ifK1USivG3u5D328h--ixcfwANYZ3XWsiCmeTW-AgL037HG5NQ27g1lCvahkHz7ldB3l6zJCcYfpo6HH0ORBZ1y19embxQkBlktHb4aX-Wi1dsI0d4HP9SfNvNDJkE9cYue_L4_-JMhz_tzpkJi-qS0BuV_S6AnN4hVEQ7MV7W0LbfQhPHX9mGOlfnZsbrfW3w4pw9-G8MR3FqIA6fLhDJ9yie4h_KkC-_by2ZKHN89KUtDwl9bcUCuxbuIEB2vHKn6eVknC4Mj6pizDNlxtV2aur_dHKb6f3U74_JKwtc3Wj313rN8VHQSLU5ZXMH6mgFxy_2uxS-8xp2VgyjQ3KozzQ-KHvIMxeQM_VHBH6fpEky5zwuJYavuwJYffYLEkRaBGXQY7BOlqZBkyOf_XvpzesRtRyC7u7FHy9fweA0pBbDfM-REfJ4x7AHYcDo7BS0LAQ_Mgkikf5BqVXXU49t6SbETKtq4bSiZI60De2YR3ptdw9UsyBf2rrfD5z3tv5gwGpte6OiA7IdrnpofXm3l1ftodnzY4LwWOCYQ1YAjvLy-4nrrS8rS0CJWy4uCx231KjcMqCj-wzuRPs5gb5z2vJ5jdfItc_7wGH6eSfsi9ejVrqQMCuojJuqfoNuglOelZFMtITcsfyJeDkM7_rtmvw2tnbxvubaSs3Ec3QTmp7dGoL7rakwHvWe2kQCB4f9WR3mwbSwfqYk2Z88hxQXf-Fs5IOUB3Y51_Z5etJ3v-RFXHJ97YaeDmj_B0aToF7-t6ba2bIVhsSBsWq1ysmY4r3ekR7hU9x65-fABj7Fz2U08zQk4DqH4K8d_rAXlRZWw52IxXwhiPZ54JLp6ez-zvnWbr-FlQCcWTCpFwNkIG5OQ4HLfgDPc3LR6NLeYyMpi4XYQdlNGHmWtfCJJ0fNutwXT4OxnX2HSBUK5beDnsQ5uiQEfa426DaGjt5_aY65flqRRiAnE5WXX-TqPLzkC7CbqS36ZqkIFeT4rALhfDD7SySu_XWELlCJCpXI7y_RUPo7xAKda3vKq3iYRgFCbREQQtPV5xy6NepqT1iQhCzniM2WThUDRyEc74A0go8mueoQylJCHPvV3zRkvclOyUh6kdPu94HjZagDpcqzfEgwGOxKEARsIuldazFveqCCHYYHhykyRMptyTvoC-4wILjzp4_X4sqUBhqJgKEg3klo6SPuofjlYtTN9Z5_HguPMC_pbsKx7Ip-b82zdonk3aP3fCSYcAnrCtsWWkVPHSBUZSmSc1OJt5N4McVlXf-7Muol5FLM32KFUh6ejbi4axeYNsR0fXGWJmjR2ZmyUHgvgayJPnXdNGQHe5YUsZN-uRTgOdsskOU6pJmLHd7xfrIi2IfpfhVhPiMNEBdWxINbn92LHSu8tIgD66V_tU1QCeYKYr2cPANyTSWLne26Zm1uDwpyFzeVMQRko3Ux9JTH-52e966lcG-3cjCMcoByC1C2spD7pRSc1deTi8o_5kLchRAli4ijjsSaQRwgxXcklD5K8nn5OHAOGBFLYNv8P5BtnltiDWsqmo51Rm7owHp7hTZSmUAKKvAcucuvKXDHc95ZDVarr2rAgPupMQfHv1AUW5ZVVM_rB4f_8bcHMsRqjCQ0CXFMBwe7jKhytS5MK0MnnQT_YYTuJRHYo81J61_-zCyCUtVuGSfVhP2cMu7jdBVfp1H9ErSU5E7csgf_pHpRnoCq9aTNo_8NZLL4EEVJ2OIujQXhRMOkJMnd741j2UEF-ylpHZtMaw1NmeGMfwwBO4QKM3i8PhabKY4IASOuSAqqi-yeApXeitbUTnGdruKr4PdeoE8g6R8Aqrd8W8cLR-sgF4NFj3TGUgmWdPkHCQkfgbUdejJJ8QKiWCzs6XzUEAWX58a132gKAiKxKdUV4p5UjmFy5RDa5u3d64UVUd7-nxUje"
+    },
+    "api": {
+        "status": "ENVIADO_API",
+        "mensagem": "reCAPTCHA enviado para 2Captcha com sucesso.",
+        "protocolo_api": "82991586707",
+        "enviado_em": "17/06/2026 16:09:35",
+        "ultimo_status_resultado": "RESOLVIDO",
+        "ultima_mensagem_resultado": "reCAPTCHA resolvido pela 2Captcha.",
+        "consultado_em": "17/06/2026 16:10:56"
+    },
+    "processado_em": "17/06/2026 16:10:56"
+}

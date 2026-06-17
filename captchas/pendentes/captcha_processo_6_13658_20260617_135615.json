@@ -1,0 +1,22 @@
+{
+    "status": "PENDENTE",
+    "criado_em": "17/06/2026 13:56:15",
+    "processo": {
+        "id": 6,
+        "numero_processo": "13658",
+        "empresa": "RSV III",
+        "municipio": "Pinhais",
+        "orgao": "Pinhais",
+        "acesso": "https://pinhais.atende.net/autoatendimento/servicos/consulta-de-processo-digital/detalhar/1"
+    },
+    "captcha": {
+        "caminho_imagem": "evidencias/atende_net_captcha_6_13658_20260617_135605.png",
+        "resposta": null
+    },
+    "api": {
+        "status": "TESTE_API",
+        "mensagem": "ERROR_WRONG_USER_KEY",
+        "protocolo_api": null,
+        "enviado_em": "17/06/2026 13:56:16"
+    }
+}

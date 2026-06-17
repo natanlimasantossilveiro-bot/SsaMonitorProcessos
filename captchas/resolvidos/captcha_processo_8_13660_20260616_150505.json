@@ -1,0 +1,22 @@
+{
+    "status": "RESOLVIDO",
+    "criado_em": "16/06/2026 15:05:05",
+    "processo": {
+        "id": 8,
+        "numero_processo": "13660",
+        "empresa": "RSV III",
+        "municipio": "Pinhais",
+        "orgao": "Pinhais",
+        "acesso": "https://pinhais.atende.net/autoatendimento/servicos/consulta-de-processo-digital/detalhar/1"
+    },
+    "captcha": {
+        "caminho_imagem": "evidencias/atende_net_captcha_8_13660_20260616_150448.png",
+        "resposta": "ABC123"
+    },
+    "api": {
+        "status": "API_NAO_CONFIGURADA",
+        "mensagem": "API de captcha ainda não configurada no .env.",
+        "protocolo_api": null,
+        "enviado_em": "16/06/2026 15:05:05"
+    }
+}
