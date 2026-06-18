@@ -1,8 +1,12 @@
+import re
+from datetime import datetime
+
+
 def normalizar_texto(valor):
     if valor is None:
         return ""
 
-    return str(valor).strip()
+    return " ".join(str(valor).strip().split())
 
 
 def normalizar_numero_processo_atende_net(processo):
@@ -52,9 +56,89 @@ def montar_dados_consulta_atende_net(processo):
 
 
 def extrair_dados_resultado_atende_net(conteudo):
+    texto = normalizar_texto(conteudo)
+
+    if not texto:
+        return {
+            "situacao": "SEM_CONTEUDO",
+            "ultima_data_movimento": None,
+            "ultima_movimentacao": "Nenhum conteúdo retornado pela página.",
+            "observacoes": "",
+        }
+
+    situacao = extrair_situacao(texto)
+    datas = extrair_datas(texto)
+    movimentacoes = extrair_movimentacoes(texto)
+
+    ultima_data = datas[-1] if datas else None
+    ultima_movimentacao = (
+        movimentacoes[-1]
+        if movimentacoes
+        else "Nenhuma movimentação identificada automaticamente."
+    )
+
     return {
-        "situacao": "PENDENTE_PARSER",
-        "ultima_data_movimento": None,
-        "ultima_movimentacao": "Parser Atende.Net ainda não implementado.",
-        "observacoes": conteudo[:500] if conteudo else "",
+        "situacao": situacao,
+        "ultima_data_movimento": ultima_data,
+        "ultima_movimentacao": ultima_movimentacao,
+        "movimentacoes": movimentacoes,
+        "observacoes": texto[:1000],
     }
+
+
+def extrair_situacao(texto):
+    padroes = [
+        r"Situação[:\s]+([A-Za-zÀ-ÿ0-9\s\-\/]+)",
+        r"Status[:\s]+([A-Za-zÀ-ÿ0-9\s\-\/]+)",
+        r"Situação Atual[:\s]+([A-Za-zÀ-ÿ0-9\s\-\/]+)",
+    ]
+
+    for padrao in padroes:
+        resultado = re.search(
+            padrao,
+            texto,
+            re.IGNORECASE,
+        )
+
+        if resultado:
+            return normalizar_texto(resultado.group(1))[:150]
+
+    return "NAO_IDENTIFICADA"
+
+
+def extrair_datas(texto):
+    datas_encontradas = re.findall(
+        r"\b\d{2}/\d{2}/\d{4}\b",
+        texto,
+    )
+
+    datas_validas = []
+
+    for data in datas_encontradas:
+        try:
+            datetime.strptime(data, "%d/%m/%Y")
+            datas_validas.append(data)
+        except ValueError:
+            continue
+
+    return datas_validas
+
+
+def extrair_movimentacoes(texto):
+    partes = re.split(
+        r"(?=\b\d{2}/\d{2}/\d{4}\b)",
+        texto,
+    )
+
+    movimentacoes = []
+
+    for parte in partes:
+        parte_limpa = normalizar_texto(parte)
+
+        if not parte_limpa:
+            continue
+
+        if re.search(r"\b\d{2}/\d{2}/\d{4}\b", parte_limpa):
+            movimentacoes.append(parte_limpa[:500])
+
+    return movimentacoes

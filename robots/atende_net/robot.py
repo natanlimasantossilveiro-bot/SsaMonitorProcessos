@@ -9,18 +9,6 @@ from robots.atende_net.parser import (
     montar_dados_consulta_atende_net,
 )
 
-from robots.atende_net.selectors import (
-    CAMPO_NUMERO,
-    CAMPO_ANO,
-    CAMPO_CODIGO_VERIFICADOR,
-    BOTAO_CONFIRMAR,
-)
-
-from services.captcha_service import (
-    solicitar_resolucao_captcha,
-    buscar_resposta_captcha_resolvido,
-)
-
 
 class RobotAtendeNet(RobotBase):
 
@@ -35,113 +23,14 @@ class RobotAtendeNet(RobotBase):
         print(f"Município: {processo.get('municipio')}")
         print(f"Acesso: {dados_consulta['url']}")
 
-        caminho_solicitacao_existente = processo.get(
-            "caminho_solicitacao_captcha"
-        )
-
-        if caminho_solicitacao_existente:
-            resultado_captcha = await buscar_resposta_captcha_resolvido(
-                caminho_solicitacao_existente
-            )
-
-            if resultado_captcha.get("status") == "RESOLVIDO":
-                print("\n=== CAPTCHA RESOLVIDO ===")
-                print("Token reCAPTCHA recebido com sucesso.")
-
-                return await executar_consulta_com_captcha_resolvido(
-                    dados_consulta=dados_consulta,
-                    processo=processo,
-                    resposta_captcha=resultado_captcha.get("resposta"),
-                    caminho_processado=resultado_captcha.get(
-                        "caminho_processado"
-                    ),
-                )
-
-            print("\n=== CAPTCHA AINDA PENDENTE ===")
-            print(resultado_captcha.get("mensagem"))
-
-            return {
-                "status": "PENDENTE_INTEGRACAO_CAPTCHA",
-                "mensagem": resultado_captcha.get("mensagem"),
-                "dados": {
-                    "numero": dados_consulta["numero"],
-                    "ano": dados_consulta["ano"],
-                    "codigo_verificador": dados_consulta[
-                        "codigo_verificador"
-                    ],
-                    "caminho_solicitacao": caminho_solicitacao_existente,
-                    "caminho_resolvido": resultado_captcha.get(
-                        "caminho_resolvido"
-                    ),
-                },
-            }
-
-        resultado_captcha = await criar_nova_solicitacao_captcha(
-            processo=processo,
+        return await executar_consulta_atende_net(
             dados_consulta=dados_consulta,
+            processo=processo,
         )
 
-        return resultado_captcha
 
-
-async def criar_nova_solicitacao_captcha(processo, dados_consulta):
-    os.makedirs("evidencias", exist_ok=True)
-
-    caminho_evidencia = gerar_caminho_evidencia_captcha(processo)
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=False
-        )
-
-        page = await browser.new_page()
-
-        await page.goto(
-            dados_consulta["url"],
-            wait_until="networkidle"
-        )
-
-        await aceitar_cookies_se_existir(page)
-
-        await page.screenshot(
-            path=caminho_evidencia,
-            full_page=True,
-        )
-
-        print("\n=== CAPTCHA / VERIFICAÇÃO DE ACESSO ===")
-        print(f"Evidência salva em: {caminho_evidencia}")
-
-        await page.wait_for_timeout(5000)
-
-        await browser.close()
-
-    resultado_captcha = await solicitar_resolucao_captcha(
-        processo=processo,
-        caminho_imagem=caminho_evidencia,
-    )
-
-    return {
-        "status": "PENDENTE_INTEGRACAO_CAPTCHA",
-        "mensagem": resultado_captcha.get("mensagem"),
-        "dados": {
-            "numero": dados_consulta["numero"],
-            "ano": dados_consulta["ano"],
-            "codigo_verificador": dados_consulta["codigo_verificador"],
-            "evidencia_captcha": caminho_evidencia,
-            "caminho_solicitacao": resultado_captcha.get(
-                "caminho_solicitacao"
-            ),
-        },
-    }
-
-
-async def executar_consulta_com_captcha_resolvido(
-    dados_consulta,
-    processo,
-    resposta_captcha,
-    caminho_processado=None,
-):
-    print("\n=== CONSULTA ATENDE.NET COM CAPTCHA RESOLVIDO ===")
+async def executar_consulta_atende_net(dados_consulta, processo):
+    print("\n=== CONSULTA ATENDE.NET ===")
     print(f"Processo: {dados_consulta['numero']}")
     print(f"Ano: {dados_consulta['ano']}")
     print(f"Código verificador: {dados_consulta['codigo_verificador']}")
@@ -153,53 +42,44 @@ async def executar_consulta_com_captcha_resolvido(
             headless=False
         )
 
-        page = await browser.new_page()
+        page = await browser.new_page(
+            viewport={
+                "width": 1280,
+                "height": 1000,
+            }
+        )
 
         await page.goto(
             dados_consulta["url"],
-            wait_until="networkidle"
+            wait_until="networkidle",
         )
 
         await aceitar_cookies_se_existir(page)
 
-        print("\nAplicando token do reCAPTCHA na página...")
+        print("\n=== VERIFICAÇÃO DE CAPTCHA ===")
+        print("Resolva o reCAPTCHA manualmente na janela aberta.")
+        print("Depois que o formulário aparecer, volte ao terminal.")
 
-        await aplicar_token_recaptcha(
-            page=page,
-            token=resposta_captcha,
-        )
+        input("Pressione ENTER após resolver o reCAPTCHA...")
 
         await page.wait_for_timeout(2000)
 
-        try:
-            await page.click(BOTAO_CONFIRMAR, timeout=10000)
-            print("Confirmação do reCAPTCHA enviada.")
-        except Exception:
-            print("Botão confirmar do reCAPTCHA não encontrado. Continuando...")
+        await salvar_html_debug(page)
 
-        await page.wait_for_selector(
-            CAMPO_NUMERO,
-            timeout=60000,
+        print("\nPreenchendo formulário dentro do iframe...")
+
+        await preencher_formulario_iframe(
+            page=page,
+            numero=dados_consulta["numero"],
+            ano=dados_consulta["ano"],
+            codigo_verificador=dados_consulta["codigo_verificador"],
         )
 
-        print("\nPreenchendo dados do processo...")
+        await page.wait_for_timeout(1000)
 
-        await page.fill(
-            CAMPO_NUMERO,
-            str(dados_consulta["numero"]),
-        )
+        print("Clicando em Confirmar...")
 
-        await page.fill(
-            CAMPO_ANO,
-            str(dados_consulta["ano"]),
-        )
-
-        await page.fill(
-            CAMPO_CODIGO_VERIFICADOR,
-            str(dados_consulta["codigo_verificador"]),
-        )
-
-        await page.click(BOTAO_CONFIRMAR)
+        await clicar_confirmar_iframe(page)
 
         await page.wait_for_timeout(5000)
 
@@ -225,44 +105,163 @@ async def executar_consulta_com_captcha_resolvido(
             "numero": dados_consulta["numero"],
             "ano": dados_consulta["ano"],
             "codigo_verificador": dados_consulta["codigo_verificador"],
-            "resposta_captcha": "TOKEN_RECAPTCHA_RECEBIDO",
-            "caminho_processado": caminho_processado,
             "evidencia_resultado": caminho_evidencia_resultado,
             "processo_id": processo.get("id"),
         },
     }
 
 
-async def aplicar_token_recaptcha(page, token):
-    await page.evaluate(
-        """
-        (token) => {
-            let textarea = document.querySelector(
-                'textarea[name="g-recaptcha-response"]'
-            );
+async def obter_frame_consulta(page):
+    iframe = page.locator("iframe").first
 
-            if (!textarea) {
-                textarea = document.createElement('textarea');
-                textarea.name = 'g-recaptcha-response';
-                textarea.id = 'g-recaptcha-response';
-                textarea.style.display = 'block';
-                document.body.appendChild(textarea);
-            }
-
-            textarea.value = token;
-            textarea.innerHTML = token;
-
-            textarea.dispatchEvent(
-                new Event('input', { bubbles: true })
-            );
-
-            textarea.dispatchEvent(
-                new Event('change', { bubbles: true })
-            );
-        }
-        """,
-        token,
+    await iframe.wait_for(
+        state="visible",
+        timeout=30000,
     )
+
+    frame_element = await iframe.element_handle()
+    frame = await frame_element.content_frame()
+
+    if frame is None:
+        raise Exception("Não foi possível acessar o iframe do Atende.Net.")
+
+    return frame
+
+
+async def preencher_formulario_iframe(
+    page,
+    numero,
+    ano,
+    codigo_verificador,
+):
+    frame = await obter_frame_consulta(page)
+
+    resultado_debug = await frame.evaluate(
+        """
+        () => {
+            const inputs = Array.from(document.querySelectorAll("input"));
+
+            return inputs.map((input, index) => {
+                const rect = input.getBoundingClientRect();
+                const style = window.getComputedStyle(input);
+
+                return {
+                    index: index,
+                    type: input.type,
+                    name: input.name,
+                    id: input.id,
+                    value: input.value,
+                    placeholder: input.placeholder,
+                    visible: (
+                        style.display !== "none" &&
+                        style.visibility !== "hidden" &&
+                        rect.width > 0 &&
+                        rect.height > 0
+                    ),
+                    width: rect.width,
+                    height: rect.height,
+                    x: rect.x,
+                    y: rect.y
+                };
+            });
+        }
+        """
+    )
+
+    print("\n=== DEBUG INPUTS IFRAME ===")
+    print(resultado_debug)
+
+    campos_visiveis = await frame.locator(
+        "input:not([type='hidden'])"
+    ).all()
+
+    if len(campos_visiveis) < 3:
+        raise Exception(
+            "Não foram encontrados 3 campos visíveis dentro do iframe."
+        )
+
+    await campos_visiveis[0].click()
+    await campos_visiveis[0].fill(str(numero))
+
+    await campos_visiveis[1].click()
+    await campos_visiveis[1].fill(str(ano))
+
+    await campos_visiveis[2].click()
+    await campos_visiveis[2].fill(str(codigo_verificador))
+
+    valores_apos_preenchimento = await frame.evaluate(
+        """
+        () => {
+            const inputs = Array.from(document.querySelectorAll("input"));
+
+            return inputs.map((input, index) => ({
+                index: index,
+                type: input.type,
+                name: input.name,
+                id: input.id,
+                value: input.value,
+                placeholder: input.placeholder
+            }));
+        }
+        """
+    )
+
+    print("\n=== VALORES APÓS PREENCHIMENTO ===")
+    print(valores_apos_preenchimento)
+
+
+async def clicar_confirmar_iframe(page):
+    frame = await obter_frame_consulta(page)
+
+    try:
+        await frame.get_by_role(
+            "button",
+            name="Confirmar",
+        ).click(timeout=10000)
+
+        return
+
+    except Exception:
+        pass
+
+    try:
+        await frame.locator(
+            "button:has-text('Confirmar')"
+        ).first.click(timeout=10000)
+
+        return
+
+    except Exception:
+        pass
+
+    try:
+        await frame.locator(
+            "input[value='Confirmar']"
+        ).first.click(timeout=10000)
+
+        return
+
+    except Exception:
+        pass
+
+    raise Exception("Botão Confirmar não encontrado dentro do iframe.")
+
+
+async def salvar_html_debug(page):
+    os.makedirs("evidencias", exist_ok=True)
+
+    html = await page.content()
+
+    caminho_html = "evidencias/debug_html_atende_net.html"
+
+    with open(
+        caminho_html,
+        "w",
+        encoding="utf-8",
+    ) as arquivo:
+        arquivo.write(html)
+
+    print(f"HTML salvo em {caminho_html}")
 
 
 async def aceitar_cookies_se_existir(page):
@@ -282,17 +281,9 @@ async def aceitar_cookies_se_existir(page):
         print("Banner de cookies não encontrado. Continuando.")
 
 
-def gerar_caminho_evidencia_captcha(processo):
-    processo_id = processo.get("id", "sem_id")
-    numero = str(
-        processo.get("numero_processo", "sem_numero")
-    ).replace("/", "_")
-    agora = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    return f"evidencias/atende_net_captcha_{processo_id}_{numero}_{agora}.png"
-
-
 def gerar_caminho_evidencia_resultado(processo):
+    os.makedirs("evidencias", exist_ok=True)
+
     processo_id = processo.get("id", "sem_id")
     numero = str(
         processo.get("numero_processo", "sem_numero")
