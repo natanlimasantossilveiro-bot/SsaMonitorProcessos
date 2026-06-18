@@ -87,26 +87,37 @@ async def executar_consulta_atende_net(dados_consulta, processo):
             full_page=True,
         )
 
-        print(f"Evidência do resultado salva em: " f"{caminho_evidencia_resultado}")
+        print(
+            f"Evidência do resultado salva em: "
+            f"{caminho_evidencia_resultado}"
+        )
 
         print("\nExtraindo dados da tela de resultado...")
 
         dados_tela = await extrair_dados_tela_resultado(page)
         dados_resultado = extrair_dados_resultado_atende_net(dados_tela)
 
+        movimentacoes = dados_tela.get("movimentacoes", [])
+
         print("\n=== DADOS EXTRAÍDOS ATENDE.NET ===")
         print(f"Situação: {dados_resultado.get('situacao')}")
         print(
-            "Última data movimento: " f"{dados_resultado.get('ultima_data_movimento')}"
+            "Última data movimento: "
+            f"{dados_resultado.get('ultima_data_movimento')}"
         )
-        print("Última movimentação: " f"{dados_resultado.get('ultima_movimentacao')}")
+        print(
+            "Última movimentação: "
+            f"{dados_resultado.get('ultima_movimentacao')}"
+        )
         print(f"Dados Atende.Net: {dados_resultado.get('dados_atende_net')}")
 
+        print("\n=== DEBUG LINHA DO TEMPO TEXTO ===")
+        print(dados_tela.get("debug_linha_tempo", "")[:5000])
+
         print("\n=== MOVIMENTAÇÕES EXTRAÍDAS ===")
-        movimentacoes = dados_tela.get("movimentacoes", [])
         print(f"Quantidade: {len(movimentacoes)}")
 
-        for movimentacao in movimentacoes[:5]:
+        for movimentacao in movimentacoes[:10]:
             print(movimentacao)
 
         await browser.close()
@@ -156,9 +167,9 @@ async def preencher_formulario_iframe(
 
     await frame.locator("input[name='numero']").fill(str(numero))
     await frame.locator("input[name='ano']").fill(str(ano))
-    await frame.locator("input[name='codigo_verificador']").fill(
-        str(codigo_verificador)
-    )
+    await frame.locator(
+        "input[name='codigo_verificador']"
+    ).fill(str(codigo_verificador))
 
 
 async def clicar_confirmar_iframe(page):
@@ -176,7 +187,9 @@ async def clicar_confirmar_iframe(page):
         pass
 
     try:
-        await frame.locator("input[value='Confirmar']").first.click(timeout=10000)
+        await frame.locator(
+            "input[value='Confirmar']"
+        ).first.click(timeout=10000)
 
         return
 
@@ -189,7 +202,8 @@ async def clicar_confirmar_iframe(page):
 async def extrair_dados_tela_resultado(page):
     frame = await obter_frame_consulta(page)
 
-    return await frame.evaluate("""
+    return await frame.evaluate(
+        """
         () => {
             function limpar(valor) {
                 if (!valor) {
@@ -236,47 +250,151 @@ async def extrair_dados_tela_resultado(page):
                 );
             }
 
-            function extrairMovimentacoes() {
-    const tabelas = Array.from(document.querySelectorAll("table"));
-    const movimentacoes = [];
+            function extrairTextoEntre(texto, inicio, fins) {
+                const indiceInicio = texto.indexOf(inicio);
 
-    for (const tabela of tabelas) {
-        const linhas = Array.from(tabela.querySelectorAll("tr"));
+                if (indiceInicio === -1) {
+                    return "";
+                }
 
-        for (const linha of linhas) {
-            const colunas = Array.from(
-                linha.querySelectorAll("td, th")
-            ).map((coluna) => limpar(coluna.innerText || coluna.textContent));
+                const inicioValor = indiceInicio + inicio.length;
+                let indiceFim = texto.length;
 
-            if (colunas.length < 5) {
-                continue;
+                for (const fim of fins) {
+                    const posicaoFim = texto.indexOf(fim, inicioValor);
+
+                    if (posicaoFim !== -1 && posicaoFim < indiceFim) {
+                        indiceFim = posicaoFim;
+                    }
+                }
+
+                return limpar(texto.substring(inicioValor, indiceFim));
             }
 
-            const tipo = colunas[2] || "";
-            const data = colunas[3] || "";
-            const hora = colunas[4] || "";
+            function extrairDetalhesLinhaDoTempo() {
+    const textosTabelas = Array.from(
+        document.querySelectorAll("table")
+    ).map((tabela) => limpar(
+        tabela.innerText || tabela.textContent || ""
+    ));
 
-            if (!/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(data)) {
-                continue;
-            }
+    const textoCompleto = textosTabelas.join(" ");
 
-            movimentacoes.push({
-                numero_movimentacao: "",
-                tipo: tipo,
-                data: data,
-                hora: hora,
-                usuario: "",
-                origem: "",
-                destino: "",
-                observacao: "",
-                anexos: "",
-                texto_original: colunas.join(" | ")
-            });
-        }
+    const regex = /Data do Movimento:\s*(\d{2}\/\d{2}\/\d{4})\s*(\d{2}:\d{2}:\d{2})([\s\S]*?)(\d+)\s*-\s*([A-Za-zÀ-ÿ\s]+?)(?=Data do Movimento:|$)/g;
+
+    const detalhes = [];
+    let match;
+
+    while ((match = regex.exec(textoCompleto)) !== null) {
+        const bloco = limpar(match[3]);
+
+        detalhes.push({
+            numero_movimentacao: limpar(match[4]),
+            tipo: limpar(match[5]),
+            data: limpar(match[1]),
+            hora: limpar(match[2]),
+            usuario: extrairTextoEntre(
+                bloco,
+                "Usuário:",
+                ["Origem:", "Destino:", "Observação:", "Anexos:", "Ver mais"]
+            ),
+            origem: extrairTextoEntre(
+                bloco,
+                "Origem:",
+                ["Destino:", "Observação:", "Anexos:", "Ver mais"]
+            ),
+            destino: extrairTextoEntre(
+                bloco,
+                "Destino:",
+                ["Observação:", "Anexos:", "Ver mais"]
+            ),
+            observacao: extrairTextoEntre(
+                bloco,
+                "Observação:",
+                ["Anexos:", "Ver mais"]
+            ),
+            anexos: extrairTextoEntre(
+                bloco,
+                "Anexos:",
+                ["Ver mais"]
+            ),
+            texto_original: limpar(match[0])
+        });
     }
 
-    return movimentacoes;
+    return detalhes;
 }
+
+            function extrairMovimentacoesTabela() {
+                const tabelas = Array.from(document.querySelectorAll("table"));
+                const movimentacoes = [];
+
+                for (const tabela of tabelas) {
+                    const linhas = Array.from(tabela.querySelectorAll("tr"));
+
+                    for (const linha of linhas) {
+                        const colunas = Array.from(
+                            linha.querySelectorAll("td, th")
+                        ).map((coluna) => limpar(
+                            coluna.innerText || coluna.textContent
+                        ));
+
+                        if (colunas.length < 5) {
+                            continue;
+                        }
+
+                        const tipo = colunas[2] || "";
+                        const data = colunas[3] || "";
+                        const hora = colunas[4] || "";
+
+                        if (!/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(data)) {
+                            continue;
+                        }
+
+                        movimentacoes.push({
+                            numero_movimentacao: "",
+                            tipo: tipo,
+                            data: data,
+                            hora: hora,
+                            usuario: "",
+                            origem: "",
+                            destino: "",
+                            observacao: "",
+                            anexos: "",
+                            texto_original: colunas.join(" | ")
+                        });
+                    }
+                }
+
+                return movimentacoes;
+            }
+
+            function combinarMovimentacoes(resumo, detalhes) {
+                return resumo.map((movimentoResumo) => {
+                    const detalhe = detalhes.find((movimentoDetalhe) => {
+                        return (
+                            movimentoDetalhe.data === movimentoResumo.data &&
+                            movimentoDetalhe.hora === movimentoResumo.hora &&
+                            movimentoDetalhe.tipo === movimentoResumo.tipo
+                        );
+                    });
+
+                    if (!detalhe) {
+                        return movimentoResumo;
+                    }
+
+                    return {
+                        ...movimentoResumo,
+                        numero_movimentacao: detalhe.numero_movimentacao,
+                        usuario: detalhe.usuario,
+                        origem: detalhe.origem,
+                        destino: detalhe.destino,
+                        observacao: detalhe.observacao,
+                        anexos: detalhe.anexos,
+                        texto_original: detalhe.texto_original
+                    };
+                });
+            }
 
             const textoPagina = limpar(document.body.innerText || "");
 
@@ -284,10 +402,16 @@ async def extrair_dados_tela_resultado(page):
                 /Situação Atual:\\s*([^\\n]+)/i
             );
 
-            const movimentacoes = extrairMovimentacoes();
+            const movimentacoesResumo = extrairMovimentacoesTabela();
+            const movimentacoesDetalhadas = extrairDetalhesLinhaDoTempo();
+            const movimentacoes = combinarMovimentacoes(
+                movimentacoesResumo,
+                movimentacoesDetalhadas
+            );
 
             return {
                 texto: textoPagina,
+                debug_linha_tempo: textoPagina,
                 movimentacoes: movimentacoes,
                 campos: {
                     situacao_atual: matchSituacao
@@ -343,7 +467,8 @@ async def extrair_dados_tela_resultado(page):
                 }
             };
         }
-        """)
+        """
+    )
 
 
 async def salvar_html_debug(page):
@@ -365,7 +490,9 @@ async def salvar_html_debug(page):
 
 async def aceitar_cookies_se_existir(page):
     try:
-        botao_aceitar = page.locator("button:has-text('Aceitar')").first
+        botao_aceitar = page.locator(
+            "button:has-text('Aceitar')"
+        ).first
 
         await botao_aceitar.wait_for(timeout=5000)
         await botao_aceitar.click()
@@ -382,7 +509,9 @@ def gerar_caminho_evidencia_resultado(processo):
     os.makedirs("evidencias", exist_ok=True)
 
     processo_id = processo.get("id", "sem_id")
-    numero = str(processo.get("numero_processo", "sem_numero")).replace("/", "_")
+    numero = str(
+        processo.get("numero_processo", "sem_numero")
+    ).replace("/", "_")
     agora = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     return f"evidencias/atende_net_resultado_{processo_id}_{numero}_{agora}.png"
