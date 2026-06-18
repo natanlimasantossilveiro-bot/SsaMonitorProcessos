@@ -39,9 +39,7 @@ async def executar_consulta_atende_net(dados_consulta, processo):
     caminho_evidencia_resultado = gerar_caminho_evidencia_resultado(processo)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=False
-        )
+        browser = await p.chromium.launch(headless=False)
 
         page = await browser.new_page(
             viewport={
@@ -89,10 +87,7 @@ async def executar_consulta_atende_net(dados_consulta, processo):
             full_page=True,
         )
 
-        print(
-            f"Evidência do resultado salva em: "
-            f"{caminho_evidencia_resultado}"
-        )
+        print(f"Evidência do resultado salva em: " f"{caminho_evidencia_resultado}")
 
         print("\nExtraindo dados da tela de resultado...")
 
@@ -102,21 +97,25 @@ async def executar_consulta_atende_net(dados_consulta, processo):
         print("\n=== DADOS EXTRAÍDOS ATENDE.NET ===")
         print(f"Situação: {dados_resultado.get('situacao')}")
         print(
-            "Última data movimento: "
-            f"{dados_resultado.get('ultima_data_movimento')}"
+            "Última data movimento: " f"{dados_resultado.get('ultima_data_movimento')}"
         )
-        print(
-            "Última movimentação: "
-            f"{dados_resultado.get('ultima_movimentacao')}"
-        )
+        print("Última movimentação: " f"{dados_resultado.get('ultima_movimentacao')}")
         print(f"Dados Atende.Net: {dados_resultado.get('dados_atende_net')}")
+
+        print("\n=== MOVIMENTAÇÕES EXTRAÍDAS ===")
+        movimentacoes = dados_tela.get("movimentacoes", [])
+        print(f"Quantidade: {len(movimentacoes)}")
+
+        for movimentacao in movimentacoes[:5]:
+            print(movimentacao)
 
         await browser.close()
 
     return {
         "status": "ATENDE_NET_CONSULTA_EXECUTADA",
         "mensagem": (
-            "Consulta Atende.Net executada e dados iniciais extraídos."
+            "Consulta Atende.Net executada, dados iniciais "
+            "e movimentações extraídos."
         ),
         "dados": {
             "numero": dados_consulta["numero"],
@@ -125,6 +124,7 @@ async def executar_consulta_atende_net(dados_consulta, processo):
             "evidencia_resultado": caminho_evidencia_resultado,
             "processo_id": processo.get("id"),
             "resultado": dados_resultado,
+            "movimentacoes": movimentacoes,
         },
     }
 
@@ -156,9 +156,9 @@ async def preencher_formulario_iframe(
 
     await frame.locator("input[name='numero']").fill(str(numero))
     await frame.locator("input[name='ano']").fill(str(ano))
-    await frame.locator(
-        "input[name='codigo_verificador']"
-    ).fill(str(codigo_verificador))
+    await frame.locator("input[name='codigo_verificador']").fill(
+        str(codigo_verificador)
+    )
 
 
 async def clicar_confirmar_iframe(page):
@@ -176,9 +176,7 @@ async def clicar_confirmar_iframe(page):
         pass
 
     try:
-        await frame.locator(
-            "input[value='Confirmar']"
-        ).first.click(timeout=10000)
+        await frame.locator("input[value='Confirmar']").first.click(timeout=10000)
 
         return
 
@@ -191,8 +189,7 @@ async def clicar_confirmar_iframe(page):
 async def extrair_dados_tela_resultado(page):
     frame = await obter_frame_consulta(page)
 
-    return await frame.evaluate(
-        """
+    return await frame.evaluate("""
         () => {
             function limpar(valor) {
                 if (!valor) {
@@ -239,14 +236,59 @@ async def extrair_dados_tela_resultado(page):
                 );
             }
 
+            function extrairMovimentacoes() {
+    const tabelas = Array.from(document.querySelectorAll("table"));
+    const movimentacoes = [];
+
+    for (const tabela of tabelas) {
+        const linhas = Array.from(tabela.querySelectorAll("tr"));
+
+        for (const linha of linhas) {
+            const colunas = Array.from(
+                linha.querySelectorAll("td, th")
+            ).map((coluna) => limpar(coluna.innerText || coluna.textContent));
+
+            if (colunas.length < 5) {
+                continue;
+            }
+
+            const tipo = colunas[2] || "";
+            const data = colunas[3] || "";
+            const hora = colunas[4] || "";
+
+            if (!/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(data)) {
+                continue;
+            }
+
+            movimentacoes.push({
+                numero_movimentacao: "",
+                tipo: tipo,
+                data: data,
+                hora: hora,
+                usuario: "",
+                origem: "",
+                destino: "",
+                observacao: "",
+                anexos: "",
+                texto_original: colunas.join(" | ")
+            });
+        }
+    }
+
+    return movimentacoes;
+}
+
             const textoPagina = limpar(document.body.innerText || "");
 
             const matchSituacao = textoPagina.match(
                 /Situação Atual:\\s*([^\\n]+)/i
             );
 
+            const movimentacoes = extrairMovimentacoes();
+
             return {
                 texto: textoPagina,
+                movimentacoes: movimentacoes,
                 campos: {
                     situacao_atual: matchSituacao
                         ? limpar(matchSituacao[1].split("Número")[0])
@@ -301,8 +343,7 @@ async def extrair_dados_tela_resultado(page):
                 }
             };
         }
-        """
-    )
+        """)
 
 
 async def salvar_html_debug(page):
@@ -324,9 +365,7 @@ async def salvar_html_debug(page):
 
 async def aceitar_cookies_se_existir(page):
     try:
-        botao_aceitar = page.locator(
-            "button:has-text('Aceitar')"
-        ).first
+        botao_aceitar = page.locator("button:has-text('Aceitar')").first
 
         await botao_aceitar.wait_for(timeout=5000)
         await botao_aceitar.click()
@@ -343,9 +382,7 @@ def gerar_caminho_evidencia_resultado(processo):
     os.makedirs("evidencias", exist_ok=True)
 
     processo_id = processo.get("id", "sem_id")
-    numero = str(
-        processo.get("numero_processo", "sem_numero")
-    ).replace("/", "_")
+    numero = str(processo.get("numero_processo", "sem_numero")).replace("/", "_")
     agora = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     return f"evidencias/atende_net_resultado_{processo_id}_{numero}_{agora}.png"
