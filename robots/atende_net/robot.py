@@ -7,6 +7,7 @@ from robots.base.robot_base import RobotBase
 
 from robots.atende_net.parser import (
     montar_dados_consulta_atende_net,
+    extrair_dados_resultado_atende_net,
 )
 
 
@@ -93,13 +94,29 @@ async def executar_consulta_atende_net(dados_consulta, processo):
             f"{caminho_evidencia_resultado}"
         )
 
+        print("\nExtraindo dados da tela de resultado...")
+
+        dados_tela = await extrair_dados_tela_resultado(page)
+        dados_resultado = extrair_dados_resultado_atende_net(dados_tela)
+
+        print("\n=== DADOS EXTRAÍDOS ATENDE.NET ===")
+        print(f"Situação: {dados_resultado.get('situacao')}")
+        print(
+            "Última data movimento: "
+            f"{dados_resultado.get('ultima_data_movimento')}"
+        )
+        print(
+            "Última movimentação: "
+            f"{dados_resultado.get('ultima_movimentacao')}"
+        )
+        print(f"Dados Atende.Net: {dados_resultado.get('dados_atende_net')}")
+
         await browser.close()
 
     return {
         "status": "ATENDE_NET_CONSULTA_EXECUTADA",
         "mensagem": (
-            "Consulta Atende.Net executada. "
-            "Próxima etapa será interpretar a tela de resultado."
+            "Consulta Atende.Net executada e dados iniciais extraídos."
         ),
         "dados": {
             "numero": dados_consulta["numero"],
@@ -107,6 +124,7 @@ async def executar_consulta_atende_net(dados_consulta, processo):
             "codigo_verificador": dados_consulta["codigo_verificador"],
             "evidencia_resultado": caminho_evidencia_resultado,
             "processo_id": processo.get("id"),
+            "resultado": dados_resultado,
         },
     }
 
@@ -136,78 +154,11 @@ async def preencher_formulario_iframe(
 ):
     frame = await obter_frame_consulta(page)
 
-    resultado_debug = await frame.evaluate(
-        """
-        () => {
-            const inputs = Array.from(document.querySelectorAll("input"));
-
-            return inputs.map((input, index) => {
-                const rect = input.getBoundingClientRect();
-                const style = window.getComputedStyle(input);
-
-                return {
-                    index: index,
-                    type: input.type,
-                    name: input.name,
-                    id: input.id,
-                    value: input.value,
-                    placeholder: input.placeholder,
-                    visible: (
-                        style.display !== "none" &&
-                        style.visibility !== "hidden" &&
-                        rect.width > 0 &&
-                        rect.height > 0
-                    ),
-                    width: rect.width,
-                    height: rect.height,
-                    x: rect.x,
-                    y: rect.y
-                };
-            });
-        }
-        """
-    )
-
-    print("\n=== DEBUG INPUTS IFRAME ===")
-    print(resultado_debug)
-
-    campos_visiveis = await frame.locator(
-        "input:not([type='hidden'])"
-    ).all()
-
-    if len(campos_visiveis) < 3:
-        raise Exception(
-            "Não foram encontrados 3 campos visíveis dentro do iframe."
-        )
-
-    await campos_visiveis[0].click()
-    await campos_visiveis[0].fill(str(numero))
-
-    await campos_visiveis[1].click()
-    await campos_visiveis[1].fill(str(ano))
-
-    await campos_visiveis[2].click()
-    await campos_visiveis[2].fill(str(codigo_verificador))
-
-    valores_apos_preenchimento = await frame.evaluate(
-        """
-        () => {
-            const inputs = Array.from(document.querySelectorAll("input"));
-
-            return inputs.map((input, index) => ({
-                index: index,
-                type: input.type,
-                name: input.name,
-                id: input.id,
-                value: input.value,
-                placeholder: input.placeholder
-            }));
-        }
-        """
-    )
-
-    print("\n=== VALORES APÓS PREENCHIMENTO ===")
-    print(valores_apos_preenchimento)
+    await frame.locator("input[name='numero']").fill(str(numero))
+    await frame.locator("input[name='ano']").fill(str(ano))
+    await frame.locator(
+        "input[name='codigo_verificador']"
+    ).fill(str(codigo_verificador))
 
 
 async def clicar_confirmar_iframe(page):
@@ -226,16 +177,6 @@ async def clicar_confirmar_iframe(page):
 
     try:
         await frame.locator(
-            "button:has-text('Confirmar')"
-        ).first.click(timeout=10000)
-
-        return
-
-    except Exception:
-        pass
-
-    try:
-        await frame.locator(
             "input[value='Confirmar']"
         ).first.click(timeout=10000)
 
@@ -245,6 +186,123 @@ async def clicar_confirmar_iframe(page):
         pass
 
     raise Exception("Botão Confirmar não encontrado dentro do iframe.")
+
+
+async def extrair_dados_tela_resultado(page):
+    frame = await obter_frame_consulta(page)
+
+    return await frame.evaluate(
+        """
+        () => {
+            function limpar(valor) {
+                if (!valor) {
+                    return "";
+                }
+
+                return String(valor)
+                    .replace(/\\s+/g, " ")
+                    .trim();
+            }
+
+            function valorPorName(name, indice = 0) {
+                const campos = Array.from(
+                    document.querySelectorAll(`[name="${name}"]`)
+                );
+
+                const campo = campos[indice];
+
+                if (!campo) {
+                    return "";
+                }
+
+                return limpar(
+                    campo.value ||
+                    campo.title ||
+                    campo.innerText ||
+                    campo.textContent
+                );
+            }
+
+            function valorSelectPorName(name) {
+                const campo = document.querySelector(`[name="${name}"]`);
+
+                if (!campo) {
+                    return "";
+                }
+
+                const opcao = campo.options[campo.selectedIndex];
+
+                return limpar(
+                    campo.title ||
+                    (opcao ? opcao.text : "") ||
+                    campo.value
+                );
+            }
+
+            const textoPagina = limpar(document.body.innerText || "");
+
+            const matchSituacao = textoPagina.match(
+                /Situação Atual:\\s*([^\\n]+)/i
+            );
+
+            return {
+                texto: textoPagina,
+                campos: {
+                    situacao_atual: matchSituacao
+                        ? limpar(matchSituacao[1].split("Número")[0])
+                        : "",
+
+                    numero_ano: (
+                        valorPorName("numero", 1) +
+                        "/" +
+                        valorPorName("ano", 1)
+                    ),
+
+                    codigo_verificador: valorPorName(
+                        "codigo_verificador",
+                        1
+                    ),
+
+                    data_abertura: valorPorName(
+                        "historico_processo_abertura.data"
+                    ),
+
+                    previsao: valorPorName("data_previsao"),
+
+                    assunto: (
+                        valorPorName("assunto_subassunto.assunto.numero") +
+                        " - " +
+                        valorPorName("assunto_subassunto.assunto.descricao")
+                    ),
+
+                    subassunto: (
+                        valorPorName("assunto_subassunto.subassunto.numero") +
+                        " - " +
+                        valorPorName("assunto_subassunto.subassunto.descricao")
+                    ),
+
+                    tipo: valorSelectPorName("tipo_assunto_subassunto"),
+
+                    requerente: (
+                        valorPorName("requerente.codigo", 0) +
+                        " - " +
+                        valorPorName("requerente.nomeRazao", 0)
+                    ),
+
+                    responsavel: (
+                        valorPorName("Procurador.codigo") +
+                        " - " +
+                        valorPorName("Procurador.nomeRazao")
+                    ),
+
+                    observacao_abertura: valorPorName(
+                        "historico_processo.observacao"
+                    )
+                }
+            };
+        }
+        """
+    )
 
 
 async def salvar_html_debug(page):

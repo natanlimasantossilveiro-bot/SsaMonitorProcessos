@@ -55,25 +55,36 @@ def montar_dados_consulta_atende_net(processo):
     }
 
 
-def extrair_dados_resultado_atende_net(conteudo):
-    texto = normalizar_texto(conteudo)
+def extrair_dados_resultado_atende_net(dados_tela):
+    campos = dados_tela.get("campos", {})
+    texto = normalizar_texto(dados_tela.get("texto", ""))
 
-    if not texto:
-        return {
-            "situacao": "SEM_CONTEUDO",
-            "ultima_data_movimento": None,
-            "ultima_movimentacao": "Nenhum conteúdo retornado pela página.",
-            "observacoes": "",
-        }
+    situacao = normalizar_texto(
+        campos.get("situacao_atual")
+    )
 
-    situacao = extrair_situacao(texto)
+    if not situacao:
+        situacao = extrair_situacao(texto)
+
+    data_abertura = normalizar_texto(
+        campos.get("data_abertura")
+    )
+
+    previsao = normalizar_texto(
+        campos.get("previsao")
+    )
+
+    observacao = normalizar_texto(
+        campos.get("observacao_abertura")
+    )
+
     datas = extrair_datas(texto)
-    movimentacoes = extrair_movimentacoes(texto)
 
-    ultima_data = datas[-1] if datas else None
+    ultima_data = datas[-1] if datas else data_abertura
+
     ultima_movimentacao = (
-        movimentacoes[-1]
-        if movimentacoes
+        observacao
+        if observacao
         else "Nenhuma movimentação identificada automaticamente."
     )
 
@@ -81,16 +92,31 @@ def extrair_dados_resultado_atende_net(conteudo):
         "situacao": situacao,
         "ultima_data_movimento": ultima_data,
         "ultima_movimentacao": ultima_movimentacao,
-        "movimentacoes": movimentacoes,
-        "observacoes": texto[:1000],
+        "movimentacoes": [],
+        "observacoes": observacao,
+        "dados_atende_net": {
+            "numero_ano": normalizar_texto(campos.get("numero_ano")),
+            "codigo_verificador": normalizar_texto(
+                campos.get("codigo_verificador")
+            ),
+            "data_abertura": data_abertura,
+            "previsao": previsao,
+            "assunto": normalizar_texto(campos.get("assunto")),
+            "subassunto": normalizar_texto(campos.get("subassunto")),
+            "tipo": normalizar_texto(campos.get("tipo")),
+            "requerente": normalizar_texto(campos.get("requerente")),
+            "responsavel": normalizar_texto(campos.get("responsavel")),
+            "observacao_abertura": observacao,
+        },
+        "texto_extraido": texto[:3000],
     }
 
 
 def extrair_situacao(texto):
     padroes = [
+        r"Situação Atual[:\s]+([A-Za-zÀ-ÿ0-9\s\-\/]+)",
         r"Situação[:\s]+([A-Za-zÀ-ÿ0-9\s\-\/]+)",
         r"Status[:\s]+([A-Za-zÀ-ÿ0-9\s\-\/]+)",
-        r"Situação Atual[:\s]+([A-Za-zÀ-ÿ0-9\s\-\/]+)",
     ]
 
     for padrao in padroes:
@@ -122,23 +148,3 @@ def extrair_datas(texto):
             continue
 
     return datas_validas
-
-
-def extrair_movimentacoes(texto):
-    partes = re.split(
-        r"(?=\b\d{2}/\d{2}/\d{4}\b)",
-        texto,
-    )
-
-    movimentacoes = []
-
-    for parte in partes:
-        parte_limpa = normalizar_texto(parte)
-
-        if not parte_limpa:
-            continue
-
-        if re.search(r"\b\d{2}/\d{2}/\d{4}\b", parte_limpa):
-            movimentacoes.append(parte_limpa[:500])
-
-    return movimentacoes
