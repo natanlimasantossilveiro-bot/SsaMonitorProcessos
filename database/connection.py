@@ -8,15 +8,19 @@ load_dotenv()
 
 
 def criar_conexao():
-    """
-    Cria e retorna uma conexão com o banco de dados MySQL.
-    """
+    host = os.getenv("DB_HOST")
+    user = os.getenv("DB_USER")
+    password = os.getenv("DB_PASSWORD")
+    database = os.getenv("DB_NAME")
+
+    if not all([host, user, password, database]):
+        raise Exception("❌ Variáveis de ambiente do banco não carregadas.")
 
     conexao = mysql.connector.connect(
-        host=os.getenv("DB_HOST"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME"),
+        host=host,
+        user=user,
+        password=password,
+        database=database,
     )
 
     return conexao

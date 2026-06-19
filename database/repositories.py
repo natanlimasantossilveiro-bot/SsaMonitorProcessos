@@ -264,7 +264,7 @@ def atualizar_dados_processo(
         UPDATE processos
         SET
             status_atual = %s,
-            data_ultimo_movimento = STR_TO_DATE(%s, '%d/%m/%Y'),
+            data_ultimo_movimento = data_movimento = mov.get("data") or No,
             ultima_movimentacao = %s,
             ultima_consulta = NOW()
         WHERE id = %s;
@@ -337,7 +337,7 @@ def movimentacao_ja_existe(
         SELECT id
         FROM movimentacoes
         WHERE processo_id = %s
-        AND data_movimento = STR_TO_DATE(%s, '%d/%m/%Y')
+        AND data_movimento = data_movimento = mov.get("data") or No
         AND descricao = %s
         LIMIT 1;
     """
@@ -382,7 +382,7 @@ def registrar_movimentacao(
         )
         VALUES (
             %s,
-            STR_TO_DATE(%s, '%d/%m/%Y'),
+            data_movimento = mov.get("data") or No,
             %s
         );
     """
@@ -488,3 +488,124 @@ def registrar_historico_consulta(
     conexao.close()
 
     return True
+
+
+def buscar_processo_por_id(processo_id):
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT * FROM processos
+        WHERE id = %s
+    """, (processo_id,))
+
+    resultado = cursor.fetchone()
+
+    cursor.close()
+    conexao.close()
+
+    return resultado
+
+def buscar_processo_por_id(processo_id):
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT * FROM processos
+        WHERE id = %s
+    """, (processo_id,))
+
+    resultado = cursor.fetchone()
+
+    cursor.close()
+    conexao.close()
+
+    return resultado
+
+
+def registrar_alteracoes(processo_id, alteracoes):
+    """
+    Registra alterações detectadas
+    """
+
+    if not alteracoes:
+        return 0
+
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    total = 0
+
+    for alt in alteracoes:
+        cursor.execute("""
+            INSERT INTO alteracoes_detectadas (
+                processo_id,
+                tipo,
+                valor_anterior,
+                valor_novo
+            )
+            VALUES (%s, %s, %s, %s)
+        """, (
+            processo_id,
+            alt.get("tipo"),
+            alt.get("antes"),
+            alt.get("depois")
+        ))
+
+        total += 1
+
+    conexao.commit()
+    cursor.close()
+    conexao.close()
+
+    return total
+
+def buscar_processo_por_id(processo_id):
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT * FROM processos
+        WHERE id = %s
+    """, (processo_id,))
+
+    resultado = cursor.fetchone()
+
+    cursor.close()
+    conexao.close()
+
+    return resultado
+
+
+def registrar_alteracoes(processo_id, alteracoes):
+    if not alteracoes:
+        return 0
+
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    total = 0
+
+    for alt in alteracoes:
+        cursor.execute("""
+            INSERT INTO alteracoes_detectadas (
+                processo_id,
+                tipo,
+                valor_anterior,
+                valor_novo
+            )
+            VALUES (%s, %s, %s, %s)
+        """, (
+            processo_id,
+            alt.get("tipo"),
+            alt.get("antes"),
+            alt.get("depois")
+        ))
+
+        total += 1
+
+    conexao.commit()
+    cursor.close()
+    conexao.close()
+
+    return total

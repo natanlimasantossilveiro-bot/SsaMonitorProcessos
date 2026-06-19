@@ -1,6 +1,7 @@
 import os
 import json
 import shutil
+import asyncio
 from datetime import datetime
 
 from services.captcha_api_client import (
@@ -293,3 +294,35 @@ async def solicitar_resolucao_captcha(
         "caminho_solicitacao": caminho_solicitacao,
         "api": resultado_api,
     }
+
+
+async def resolver_recaptcha_direto(sitekey, url):
+    print("🧠 Enviando captcha direto para 2Captcha...")
+
+    resultado_envio = await enviar_captcha_para_api(
+        processo={},
+        caminho_imagem=None,
+        sitekey=sitekey,
+        url=url
+    )
+
+    if resultado_envio.get("status") != "ENVIADO_API":
+        raise Exception(f"Erro ao enviar captcha: {resultado_envio}")
+
+    protocolo = resultado_envio.get("protocolo_api")
+
+    print(f"📌 Protocolo: {protocolo}")
+    print("⌛ Aguardando solução...")
+
+    for tentativa in range(24):
+        await asyncio.sleep(5)
+
+        resultado = await consultar_resultado_captcha_api(protocolo)
+
+        if resultado.get("status") == "RESOLVIDO":
+            print("✅ Captcha resolvido!")
+            return resultado.get("resposta")
+
+        print(f"⌛ Tentativa {tentativa + 1}...")
+
+    raise Exception("❌ Timeout ao resolver captcha direto")
