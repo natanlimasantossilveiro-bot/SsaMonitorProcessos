@@ -10,6 +10,11 @@ from robots.atende_net.parser import (
     extrair_dados_resultado_atende_net,
 )
 
+from database.repositories import (
+    atualizar_dados_processo,
+    registrar_movimentacao
+)
+
 
 class RobotAtendeNet(RobotBase):
 
@@ -97,6 +102,23 @@ async def executar_consulta_atende_net(dados_consulta, processo):
         dados_tela = await extrair_dados_tela_resultado(page)
         dados_resultado = extrair_dados_resultado_atende_net(dados_tela)
 
+        dados_atende = dados_resultado.get("dados_atende_net", {})
+
+        dados_processo = {
+            "numero": dados_consulta["numero"],
+            "ano": dados_consulta["ano"],
+            "codigo_verificador": dados_consulta["codigo_verificador"],
+            "situacao": dados_resultado.get("situacao"),
+            "data_abertura": dados_atende.get("data_abertura"),
+            "previsao": dados_atende.get("previsao"),
+            "assunto": dados_atende.get("assunto"),
+            "subassunto": dados_atende.get("subassunto"),
+            "tipo": dados_atende.get("tipo"),
+            "requerente": dados_atende.get("requerente"),
+            "responsavel": dados_atende.get("responsavel"),
+            "observacao_abertura": dados_atende.get("observacao_abertura"),
+        }
+
         movimentacoes = dados_tela.get("movimentacoes", [])
 
         print("\n=== DADOS EXTRAÍDOS ATENDE.NET ===")
@@ -119,6 +141,33 @@ async def executar_consulta_atende_net(dados_consulta, processo):
 
         for movimentacao in movimentacoes[:10]:
             print(movimentacao)
+
+        print("\n=== SALVANDO DADOS NO BANCO ===")
+
+        # === ATUALIZAR PROCESSO ===
+        atualizar_dados_processo(
+            processo_id=processo.get("id"),
+            status_atual=dados_resultado.get("situacao"),
+            data_ultimo_movimento=dados_resultado.get("ultima_data_movimento"),
+            ultima_movimentacao=dados_resultado.get("ultima_movimentacao"),
+        )
+
+        print("✅ Dados do processo atualizados")
+
+        # === SALVAR MOVIMENTAÇÕES ===
+        novas_movimentacoes = 0
+
+        for mov in movimentacoes:
+            sucesso = registrar_movimentacao(
+                processo_id=processo.get("id"),
+                data_movimento=mov.get("data"),
+                descricao=mov.get("texto_original") or mov.get("tipo")
+            )
+
+            if sucesso:
+                novas_movimentacoes += 1
+
+        print(f"✅ {novas_movimentacoes} novas movimentações registradas")
 
         await browser.close()
 
