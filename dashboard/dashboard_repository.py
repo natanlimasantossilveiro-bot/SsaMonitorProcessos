@@ -128,3 +128,12 @@ def buscar_ultimas_consultas():
         ORDER BY h.id DESC
         LIMIT 10;
     """)
+
+
+def buscar_total_movimentacoes_recentes():
+    resultado = executar_query_unica("""
+        SELECT COUNT(*) AS total
+        FROM movimentacoes
+        WHERE DATE(data_movimento) = CURDATE();
+    """)
+    return resultado["total"]

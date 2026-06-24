@@ -9,9 +9,14 @@ from database.repositories import (
 )
 
 from robots.curitiba.robot import consultar_processo_curitiba
-from robots.atende_net.robot import consultar_processo_atende_net
+
+from robots.atendenet_v2.robot import consultar_processo_atende_net
 
 from services.relatorio_execucao_service import salvar_relatorio_execucao
+
+from robots.sjp.robot import consultar_processo_sjp
+
+from database.repositories import atualizar_dados_processo
 
 
 STATUS_SEM_ROBO_CONFIGURADO = "SEM_ROBO_CONFIGURADO"
@@ -226,7 +231,7 @@ async def monitorar_um_processo_teste():
             f"{processo.get('numero_processo')} | "
             f"{processo.get('empresa')} | "
             f"{processo.get('nome_orgao')} | "
-            f"Robô: {processo.get('chave_robo')}"
+            f"Robô: {processo.get('robo') or processo.get('chave_robo')}"
         )
 
     escolha = input("\nDigite o número do processo para testar: ").strip()
@@ -275,6 +280,68 @@ async def consultar_com_robo(
         status = resultado.get("status", "OK")
         mensagem = resultado.get("mensagem", "")
 
+        # =====================================================
+        # ✅ ATUALIZAÇÃO DO PROCESSO (NOVO BLOCO)
+        # =====================================================
+
+        print("\n🔥 DEBUG UPDATE")
+
+        print("Status geral:", status)
+        print("Resultado:", resultado)
+
+        movimentacoes = resultado.get("movimentacoes") or []
+
+        status_processo = resultado.get("status_processo")
+        data_ultimo_movimento = None
+        ultima_movimentacao = None
+
+        # ✅ CASO 1: robôs com movimentações (ESIC / SJP)
+        if movimentacoes:
+            print("✅ Entrou no bloco de movimentações")
+
+            import re
+
+            ultima_movimentacao = movimentacoes[0]
+
+            for movimento in movimentacoes:
+                match = re.search(r"\d{2}/\d{2}/\d{4}", movimento)
+
+                if match:
+                    data_str = match.group()
+                    data_convertida = datetime.strptime(data_str, "%d/%m/%Y")
+                    data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
+                    break
+
+        # ✅ CASO 2: robôs com dados estruturados (Curitiba)
+        elif resultado.get("ultima_data_movimento"):
+            print("✅ Entrou no bloco estruturado (Curitiba)")
+
+            data_str = resultado.get("ultima_data_movimento")
+            ultima_movimentacao = resultado.get("ultima_movimentacao")
+
+            try:
+                data_convertida = datetime.strptime(data_str, "%d/%m/%Y")
+                data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
+            except Exception:
+                data_ultimo_movimento = None
+
+        else:
+            print("❌ Sem dados para atualização")
+
+        # ✅ ATUALIZAÇÃO FINAL
+        if status_processo or ultima_movimentacao:
+            print("⚙️ Atualizando banco...")
+            print("Processo:", processo_id)
+            print("Status:", status_processo)
+            print("Data:", data_ultimo_movimento)
+
+            atualizar_dados_processo(
+                processo_id,
+                status_processo,
+                data_ultimo_movimento,
+                ultima_movimentacao,
+            )
+
         tratar_estado_captcha_processo(
             processo_id=processo_id,
             status=status,
@@ -309,41 +376,52 @@ async def consultar_com_robo(
 
 
 async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
+
+    print("\n🔥 DEBUG PROCESSO COMPLETO:")
+    print(processo)
+
     processo_id = processo.get("id")
     numero_processo = processo.get("numero_processo")
-    chave_robo = processo.get("chave_robo")
 
-    if chave_robo == "curitiba":
+    nome_robo = processo.get("robo") or processo.get("chave_robo")
+
+    if nome_robo == "curitiba":
         return await consultar_com_robo(
             processo=processo,
             nome_robo="curitiba",
             funcao_consulta=consultar_processo_curitiba,
         )
 
-    if chave_robo == "atende_net":
+    if nome_robo == "atende_net":
         return await consultar_com_robo(
             processo=processo,
             nome_robo="atende_net",
             funcao_consulta=consultar_processo_atende_net,
         )
 
+    if nome_robo == "sjp":
+        return await consultar_com_robo(
+            processo=processo,
+            nome_robo="sjp",
+            funcao_consulta=consultar_processo_sjp,
+        )
+
+    if nome_robo == "esic":  # ✅ AGORA VAI FUNCIONAR!
+        from robots.esic.robot import consultar_processo_esic
+
+        return await consultar_com_robo(
+            processo=processo,
+            nome_robo="esic",
+            funcao_consulta=consultar_processo_esic,
+        )
+
     registrar_historico_consulta(
         processo_id=processo_id,
         status=STATUS_SEM_ROBO_CONFIGURADO,
-        mensagem=f"Não existe robô configurado para a chave: {chave_robo}",
+        mensagem=f"Não existe robô configurado para: {nome_robo}",
     )
-
-    if not modo_silencioso_sem_robo:
-        print("\n========================================")
-        print(f"Processo ID: {processo_id}")
-        print(f"Número: {numero_processo}")
-        print(f"Empresa: {processo.get('empresa')}")
-        print(f"Município: {processo.get('municipio')}")
-        print(f"Órgão: {processo.get('nome_orgao')}")
-        print(f"Robô: {chave_robo}")
-        print("Status final: SEM_ROBO_CONFIGURADO")
 
     return {
         "status": STATUS_SEM_ROBO_CONFIGURADO,
-        "mensagem": f"Não existe robô configurado para a chave: {chave_robo}",
+        "mensagem": f"Não existe robô configurado para: {nome_robo}",
     }

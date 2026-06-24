@@ -108,18 +108,13 @@ async def consultar_processo_curitiba(processo):
             print("\n=== DADOS EXTRAÍDOS ===")
             print(dados_extraidos)
 
-            atualizar_dados_processo(
-                processo_id=processo["id"],
-                status_atual=dados_extraidos["situacao"],
-                data_ultimo_movimento=dados_extraidos["ultima_data_movimento"],
-                ultima_movimentacao=dados_extraidos["ultima_movimentacao"],
-            )
-
-            movimentacao_nova = registrar_movimentacao(
-                processo_id=processo["id"],
-                data_movimento=dados_extraidos["ultima_data_movimento"],
-                descricao=dados_extraidos["ultima_movimentacao"],
-            )
+            return {
+                "status": "OK",
+                "mensagem": "Consulta realizada com sucesso",
+                "status_processo": dados_extraidos["situacao"],
+                "ultima_data_movimento": dados_extraidos["ultima_data_movimento"],
+                "ultima_movimentacao": dados_extraidos["ultima_movimentacao"],
+            }
 
             if movimentacao_nova:
                 print("\n🚨 NOVA MOVIMENTAÇÃO DETECTADA E REGISTRADA.")

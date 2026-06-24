@@ -16,13 +16,23 @@ def gerar_linhas_tabela(lista, colunas):
         html += "<tr>"
 
         for coluna in colunas:
-
             valor = item.get(coluna)
 
             if valor is None:
                 valor = ""
 
-            html += f"<td>{valor}</td>"
+            if coluna in ["status", "status_consulta"]:
+                texto = str(valor)
+
+                if "Finalizado" in texto:
+                    html += f'<td style="color: green; font-weight: bold;">{valor}</td>'
+                elif "Indeferido" in texto:
+                    html += f'<td style="color: red; font-weight: bold;">{valor}</td>'
+                else:
+                    html += f"<td>{valor}</td>"
+
+            else:
+                html += f"<td>{valor}</td>"
 
         html += "</tr>"
 

@@ -1,20 +1,18 @@
 from database.connection import criar_conexao
 
 
+# =====================================================
+# ✅ ORGÃOS
+# =====================================================
 def buscar_orgao_por_url(url):
     conexao = criar_conexao()
     cursor = conexao.cursor(dictionary=True)
 
-    cursor.execute(
-        "SELECT * FROM orgaos WHERE url = %s LIMIT 1;",
-        (url,)
-    )
-
+    cursor.execute("SELECT * FROM orgaos WHERE url = %s LIMIT 1;", (url,))
     orgao = cursor.fetchone()
 
     cursor.close()
     conexao.close()
-
     return orgao
 
 
@@ -22,111 +20,110 @@ def cadastrar_orgao(nome, tipo, url, chave_robo=None):
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
-    query = """
+    cursor.execute("""
         INSERT INTO orgaos (
-            nome,
-            tipo,
-            url,
-            chave_robo,
-            possui_login,
-            possui_captcha
+            nome, tipo, url, chave_robo,
+            possui_login, possui_captcha
         )
-        VALUES (%s, %s, %s, %s, FALSE, FALSE);
-    """
-
-    cursor.execute(
-        query,
-        (nome, tipo, url, chave_robo)
-    )
+        VALUES (%s, %s, %s, %s, FALSE, FALSE)
+    """, (nome, tipo, url, chave_robo))
 
     conexao.commit()
     orgao_id = cursor.lastrowid
 
     cursor.close()
     conexao.close()
-
     return orgao_id
 
 
 def obter_ou_criar_orgao(nome, tipo, url, chave_robo=None):
     orgao = buscar_orgao_por_url(url)
-
     if orgao:
         return orgao["id"]
-
-    return cadastrar_orgao(
-        nome=nome,
-        tipo=tipo,
-        url=url,
-        chave_robo=chave_robo,
-    )
+    return cadastrar_orgao(nome, tipo, url, chave_robo)
 
 
 def listar_orgaos():
     conexao = criar_conexao()
     cursor = conexao.cursor(dictionary=True)
 
-    query = """
-        SELECT
-            id,
-            nome,
-            tipo,
-            url,
-            chave_robo,
-            possui_login,
-            possui_captcha,
-            ativo
+    cursor.execute("""
+        SELECT id, nome, tipo, url,
+               chave_robo, possui_login,
+               possui_captcha, ativo
         FROM orgaos
-        ORDER BY nome, url;
-    """
+        ORDER BY nome
+    """)
 
-    cursor.execute(query)
-    orgaos = cursor.fetchall()
-
+    dados = cursor.fetchall()
     cursor.close()
     conexao.close()
+    return dados
 
-    return orgaos
 
-
+# =====================================================
+# ✅ PROCESSOS
+# =====================================================
 def buscar_processo_por_orgao_e_numero(orgao_id, numero_processo):
     conexao = criar_conexao()
     cursor = conexao.cursor(dictionary=True)
 
-    query = """
+    cursor.execute("""
         SELECT *
         FROM processos
         WHERE orgao_id = %s
         AND numero_processo = %s
-        LIMIT 1;
-    """
-
-    cursor.execute(
-        query,
-        (orgao_id, numero_processo)
-    )
+        LIMIT 1
+    """, (orgao_id, numero_processo))
 
     processo = cursor.fetchone()
 
     cursor.close()
     conexao.close()
-
     return processo
+
+
+def buscar_processo_por_id(processo_id):
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    cursor.execute("SELECT * FROM processos WHERE id = %s", (processo_id,))
+    processo = cursor.fetchone()
+
+    cursor.close()
+    conexao.close()
+    return processo
+
+
+def buscar_processos_por_orgao(orgao_id):
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT *
+        FROM processos
+        WHERE orgao_id = %s
+        AND ativo = TRUE
+    """, (orgao_id,))
+
+    dados = cursor.fetchall()
+
+    cursor.close()
+    conexao.close()
+    return dados
 
 
 def cadastrar_ou_atualizar_processo_planilha(dados):
     processo_existente = buscar_processo_por_orgao_e_numero(
-        dados["orgao_id"],
-        dados["numero_processo"]
+        dados["orgao_id"], dados["numero_processo"]
     )
 
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
     if processo_existente:
-        query = """
-            UPDATE processos
-            SET
+        cursor.execute("""
+            UPDATE processos SET
                 empresa = %s,
                 cnpj = %s,
                 municipio = %s,
@@ -137,120 +134,98 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
                 senha_acesso = %s,
                 cliente = %s,
                 ativo = TRUE
-            WHERE id = %s;
-        """
-
-        cursor.execute(
-            query,
-            (
-                dados["empresa"],
-                dados["cnpj"],
-                dados["municipio"],
-                dados["exercicio"],
-                dados["codigo"],
-                dados["acesso"],
-                dados["login"],
-                dados["senha"],
-                dados["empresa"],
-                processo_existente["id"],
-            )
-        )
+            WHERE id = %s
+        """, (
+            dados["empresa"],
+            dados["cnpj"],
+            dados["municipio"],
+            dados["exercicio"],
+            dados["codigo"],
+            dados["acesso"],
+            dados.get("login"),
+            dados.get("senha"),
+            dados["empresa"],
+            processo_existente["id"]
+        ))
 
         processo_id = processo_existente["id"]
 
     else:
-        query = """
+        cursor.execute("""
             INSERT INTO processos (
-                orgao_id,
-                empresa,
-                cnpj,
-                municipio,
-                exercicio,
-                numero_processo,
-                codigo,
-                acesso,
-                login_acesso,
-                senha_acesso,
-                cliente
+                orgao_id, empresa, cnpj, municipio,
+                exercicio, numero_processo, codigo,
+                acesso, login_acesso, senha_acesso, cliente
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-        """
-
-        cursor.execute(
-            query,
-            (
-                dados["orgao_id"],
-                dados["empresa"],
-                dados["cnpj"],
-                dados["municipio"],
-                dados["exercicio"],
-                dados["numero_processo"],
-                dados["codigo"],
-                dados["acesso"],
-                dados["login"],
-                dados["senha"],
-                dados["empresa"],
-            )
-        )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            dados["orgao_id"],
+            dados["empresa"],
+            dados["cnpj"],
+            dados["municipio"],
+            dados["exercicio"],
+            dados["numero_processo"],
+            dados["codigo"],
+            dados["acesso"],
+            dados.get("login"),
+            dados.get("senha"),
+            dados["empresa"]
+        ))
 
         processo_id = cursor.lastrowid
 
     conexao.commit()
-
     cursor.close()
     conexao.close()
 
     return processo_id
 
 
-def buscar_processos_por_orgao(orgao_id):
-    conexao = criar_conexao()
-    cursor = conexao.cursor(dictionary=True)
-
-    query = """
-        SELECT *
-        FROM processos
-        WHERE orgao_id = %s
-        AND ativo = TRUE;
-    """
-
-    cursor.execute(query, (orgao_id,))
-    processos = cursor.fetchall()
-
-    cursor.close()
-    conexao.close()
-
-    return processos
-
-
+# =====================================================
+# ✅ LISTAGEM
+# =====================================================
 def listar_processos_ativos_com_orgao():
     conexao = criar_conexao()
     cursor = conexao.cursor(dictionary=True)
 
-    query = """
+    cursor.execute("""
         SELECT
-            processos.*,
+            processos.id,
+            processos.numero_processo,
+            processos.empresa,
+            processos.cnpj,
+            processos.municipio,
+            processos.exercicio,
+            processos.codigo,
+            processos.acesso,
+            processos.login_acesso,
+            processos.senha_acesso,
+            processos.cliente,
+            processos.ativo,
+            processos.robo,
+
             orgaos.nome AS nome_orgao,
             orgaos.tipo AS tipo_orgao,
             orgaos.url AS url_orgao,
-            orgaos.chave_robo AS chave_robo,
-            orgaos.possui_login AS orgao_possui_login,
-            orgaos.possui_captcha AS orgao_possui_captcha
+            orgaos.chave_robo,
+            orgaos.possui_login,
+            orgaos.possui_captcha
         FROM processos
         INNER JOIN orgaos ON processos.orgao_id = orgaos.id
         WHERE processos.ativo = TRUE
-        ORDER BY processos.id;
-    """
+        ORDER BY processos.id
+    """)
 
-    cursor.execute(query)
-    processos = cursor.fetchall()
+    dados = cursor.fetchall()
 
     cursor.close()
     conexao.close()
+    return dados
 
-    return processos
 
-
+# =====================================================
+# ✅ ATUALIZAÇÃO
+# =====================================================
 def atualizar_dados_processo(
     processo_id,
     status_atual,
@@ -260,48 +235,34 @@ def atualizar_dados_processo(
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
-    query = """
-        UPDATE processos
-        SET
+    cursor.execute("""
+        UPDATE processos SET
             status_atual = %s,
-            data_ultimo_movimento = data_movimento = mov.get("data") or No,
+            data_ultimo_movimento = %s,
             ultima_movimentacao = %s,
             ultima_consulta = NOW()
-        WHERE id = %s;
-    """
-
-    cursor.execute(
-        query,
-        (
-            status_atual,
-            data_ultimo_movimento,
-            ultima_movimentacao,
-            processo_id,
-        )
-    )
+        WHERE id = %s
+    """, (
+        status_atual,
+        data_ultimo_movimento,
+        ultima_movimentacao,
+        processo_id
+    ))
 
     conexao.commit()
     cursor.close()
     conexao.close()
 
 
-def atualizar_caminho_solicitacao_captcha(processo_id, caminho_solicitacao):
+def atualizar_caminho_solicitacao_captcha(processo_id, caminho):
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
-    query = """
+    cursor.execute("""
         UPDATE processos
         SET caminho_solicitacao_captcha = %s
-        WHERE id = %s;
-    """
-
-    cursor.execute(
-        query,
-        (
-            caminho_solicitacao,
-            processo_id,
-        )
-    )
+        WHERE id = %s
+    """, (caminho, processo_id))
 
     conexao.commit()
     cursor.close()
@@ -312,89 +273,55 @@ def limpar_caminho_solicitacao_captcha(processo_id):
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
-    query = """
+    cursor.execute("""
         UPDATE processos
         SET caminho_solicitacao_captcha = NULL
-        WHERE id = %s;
-    """
-
-    cursor.execute(query, (processo_id,))
+        WHERE id = %s
+    """, (processo_id,))
 
     conexao.commit()
     cursor.close()
     conexao.close()
 
 
-def movimentacao_ja_existe(
-    processo_id,
-    data_movimento,
-    descricao
-):
+# =====================================================
+# ✅ MOVIMENTAÇÕES
+# =====================================================
+def movimentacao_ja_existe(processo_id, data, descricao):
     conexao = criar_conexao()
     cursor = conexao.cursor(dictionary=True)
 
-    query = """
+    cursor.execute("""
         SELECT id
         FROM movimentacoes
         WHERE processo_id = %s
-        AND data_movimento = data_movimento = mov.get("data") or No
+        AND data_movimento <=> %s
         AND descricao = %s
-        LIMIT 1;
-    """
+        LIMIT 1
+    """, (processo_id, data, descricao))
 
-    cursor.execute(
-        query,
-        (
-            processo_id,
-            data_movimento,
-            descricao,
-        )
-    )
-
-    movimentacao = cursor.fetchone()
+    resultado = cursor.fetchone()
 
     cursor.close()
     conexao.close()
+    return resultado is not None
 
-    return movimentacao is not None
 
-
-def registrar_movimentacao(
-    processo_id,
-    data_movimento,
-    descricao
-):
-    if movimentacao_ja_existe(
-        processo_id,
-        data_movimento,
-        descricao
-    ):
+def registrar_movimentacao(processo_id, data, descricao):
+    if movimentacao_ja_existe(processo_id, data, descricao):
         return False
 
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
-    query = """
+    cursor.execute("""
         INSERT INTO movimentacoes (
             processo_id,
             data_movimento,
             descricao
         )
-        VALUES (
-            %s,
-            data_movimento = mov.get("data") or No,
-            %s
-        );
-    """
-
-    cursor.execute(
-        query,
-        (
-            processo_id,
-            data_movimento,
-            descricao,
-        )
-    )
+        VALUES (%s, %s, %s)
+    """, (processo_id, data, descricao))
 
     conexao.commit()
     cursor.close()
@@ -403,180 +330,32 @@ def registrar_movimentacao(
     return True
 
 
-def obter_colunas_tabela(nome_tabela):
+# =====================================================
+# ✅ HISTÓRICO
+# =====================================================
+def registrar_historico_consulta(processo_id, status, mensagem=None):
     conexao = criar_conexao()
-    cursor = conexao.cursor(dictionary=True)
+    cursor = conexao.cursor()
 
-    cursor.execute(f"DESCRIBE {nome_tabela};")
-    colunas = cursor.fetchall()
-
-    cursor.close()
-    conexao.close()
-
-    return [coluna["Field"] for coluna in colunas]
-
-
-def registrar_historico_consulta(
-    processo_id,
-    status,
-    mensagem=None
-):
-    colunas = obter_colunas_tabela("historico_consultas")
-
-    dados = {}
-
-    if "processo_id" in colunas:
-        dados["processo_id"] = processo_id
-
-    if "status_consulta" in colunas:
-        dados["status_consulta"] = status
-
-    if "status" in colunas:
-        dados["status"] = status
-
-    if "resultado" in colunas:
-        dados["resultado"] = status
-
-    if "mensagem" in colunas:
-        dados["mensagem"] = mensagem
-
-    if "observacao" in colunas:
-        dados["observacao"] = mensagem
-
-    if "observacoes" in colunas:
-        dados["observacoes"] = mensagem
-
-    campos_data_possiveis = [
-        "data_consulta",
-        "consultado_em",
-        "created_at",
-        "criado_em",
-    ]
-
-    campo_data = None
-
-    for campo in campos_data_possiveis:
-        if campo in colunas:
-            campo_data = campo
-            break
-
-    campos = list(dados.keys())
-    valores = list(dados.values())
-
-    placeholders = ["%s"] * len(valores)
-
-    if campo_data:
-        campos.append(campo_data)
-        placeholders.append("NOW()")
-
-    query = f"""
+    cursor.execute("""
         INSERT INTO historico_consultas (
-            {", ".join(campos)}
+            processo_id,
+            status_consulta,
+            mensagem,
+            data_consulta
         )
-        VALUES (
-            {", ".join(placeholders)}
-        );
-    """
-
-    conexao = criar_conexao()
-    cursor = conexao.cursor()
-
-    cursor.execute(query, tuple(valores))
+        VALUES (%s, %s, %s, NOW())
+    """, (processo_id, status, mensagem))
 
     conexao.commit()
     cursor.close()
     conexao.close()
-
     return True
 
 
-def buscar_processo_por_id(processo_id):
-    conexao = criar_conexao()
-    cursor = conexao.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT * FROM processos
-        WHERE id = %s
-    """, (processo_id,))
-
-    resultado = cursor.fetchone()
-
-    cursor.close()
-    conexao.close()
-
-    return resultado
-
-def buscar_processo_por_id(processo_id):
-    conexao = criar_conexao()
-    cursor = conexao.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT * FROM processos
-        WHERE id = %s
-    """, (processo_id,))
-
-    resultado = cursor.fetchone()
-
-    cursor.close()
-    conexao.close()
-
-    return resultado
-
-
-def registrar_alteracoes(processo_id, alteracoes):
-    """
-    Registra alterações detectadas
-    """
-
-    if not alteracoes:
-        return 0
-
-    conexao = criar_conexao()
-    cursor = conexao.cursor()
-
-    total = 0
-
-    for alt in alteracoes:
-        cursor.execute("""
-            INSERT INTO alteracoes_detectadas (
-                processo_id,
-                tipo,
-                valor_anterior,
-                valor_novo
-            )
-            VALUES (%s, %s, %s, %s)
-        """, (
-            processo_id,
-            alt.get("tipo"),
-            alt.get("antes"),
-            alt.get("depois")
-        ))
-
-        total += 1
-
-    conexao.commit()
-    cursor.close()
-    conexao.close()
-
-    return total
-
-def buscar_processo_por_id(processo_id):
-    conexao = criar_conexao()
-    cursor = conexao.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT * FROM processos
-        WHERE id = %s
-    """, (processo_id,))
-
-    resultado = cursor.fetchone()
-
-    cursor.close()
-    conexao.close()
-
-    return resultado
-
-
+# =====================================================
+# ✅ ALTERAÇÕES
+# =====================================================
 def registrar_alteracoes(processo_id, alteracoes):
     if not alteracoes:
         return 0
@@ -601,7 +380,6 @@ def registrar_alteracoes(processo_id, alteracoes):
             alt.get("antes"),
             alt.get("depois")
         ))
-
         total += 1
 
     conexao.commit()

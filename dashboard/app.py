@@ -15,6 +15,7 @@ from dashboard.dashboard_repository import (
     buscar_ultimas_movimentacoes,
     buscar_orgaos_sem_robo,
     buscar_ultimas_consultas,
+    buscar_total_movimentacoes_recentes,
 )
 
 from dashboard.dashboard_html import (
@@ -37,6 +38,7 @@ def buscar_dados_dashboard():
         "ultimas_movimentacoes": buscar_ultimas_movimentacoes(),
         "orgaos_sem_robo": buscar_orgaos_sem_robo(),
         "ultimas_consultas": buscar_ultimas_consultas(),
+        "novas_movimentacoes": buscar_total_movimentacoes_recentes(),
     }
 
 
@@ -85,6 +87,7 @@ def gerar_html():
     <html lang="pt-br">
     <head>
         <meta charset="UTF-8">
+        <meta http-equiv="refresh" content="10">
         <title>SSA Monitor Processos</title>
         <style>
             * {{
@@ -180,6 +183,12 @@ def gerar_html():
                 text-align: left;
                 font-size: 14px;
                 vertical-align: top;
+
+                max-width: 300px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+
             }}
 
             th {{
@@ -228,6 +237,17 @@ def gerar_html():
     <body>
         <h1>SSA Monitor Processos</h1>
         <div class="subtitulo">Dashboard gerencial de acompanhamento dos processos monitorados</div>
+        <button onclick="location.reload()" style="
+            padding:10px;
+            margin-bottom:15px;
+            background:#2563eb;
+            color:white;
+            border:none;
+            border-radius:8px;
+            cursor:pointer;
+        ">
+            🔄 Atualizar agora
+        </button>
 
         <div class="cards">
             <div class="card">
@@ -241,8 +261,8 @@ def gerar_html():
             </div>
 
             <div class="card alerta">
-                <h2>{dados["processos_sem_robo"]}</h2>
-                <p>Sem robô configurado</p>
+                <h2>{dados["novas_movimentacoes"]}</h2>
+                <p>Movimentações hoje</p>
             </div>
 
             <div class="card neutro">
