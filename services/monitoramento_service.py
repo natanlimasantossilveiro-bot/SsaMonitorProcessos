@@ -314,14 +314,18 @@ async def consultar_com_robo(
 
         # ✅ CASO 2: robôs com dados estruturados (Curitiba)
         elif resultado.get("ultima_data_movimento"):
-            print("✅ Entrou no bloco estruturado (Curitiba)")
+            print("✅ Entrou no bloco estruturado (dados diretos)")
 
             data_str = resultado.get("ultima_data_movimento")
             ultima_movimentacao = resultado.get("ultima_movimentacao")
 
             try:
-                data_convertida = datetime.strptime(data_str, "%d/%m/%Y")
-                data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
+                if "-" in data_str:
+                    # já está no formato certo (YYYY-MM-DD)
+                    data_ultimo_movimento = data_str
+                else:
+                    data_convertida = datetime.strptime(data_str, "%d/%m/%Y")
+                    data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
             except Exception:
                 data_ultimo_movimento = None
 
@@ -385,6 +389,20 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
 
     nome_robo = processo.get("robo") or processo.get("chave_robo")
 
+    # 🚫 DESATIVA ATENDENET
+    if nome_robo == "atende_net":
+        registrar_historico_consulta(
+            processo_id=processo_id,
+            status="ROBO_DESATIVADO",
+            mensagem="AtendeNet temporariamente desativado",
+        )
+
+        return {
+            "status": "ROBO_DESATIVADO",
+            "mensagem": "AtendeNet temporariamente desativado",
+            "ROBO_DESATIVADO": 0,
+        }
+
     if nome_robo == "curitiba":
         return await consultar_com_robo(
             processo=processo,
@@ -413,6 +431,15 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
             processo=processo,
             nome_robo="esic",
             funcao_consulta=consultar_processo_esic,
+        )
+    
+    if nome_robo == "caieiras":
+        from robots.caieiras.robot import consultar_processo_caieiras
+
+        return await consultar_com_robo(
+            processo=processo,
+            nome_robo="caieiras",
+            funcao_consulta=consultar_processo_caieiras,
         )
 
     registrar_historico_consulta(
