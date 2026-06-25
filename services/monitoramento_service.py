@@ -20,6 +20,10 @@ from database.repositories import atualizar_dados_processo
 
 from robots.franco_rocha.robot import consultar_processo_franco_rocha
 
+import asyncio
+
+fila_processos = asyncio.Queue()
+
 
 STATUS_SEM_ROBO_CONFIGURADO = "SEM_ROBO_CONFIGURADO"
 STATUS_ERRO_CONSULTA = "ERRO_CONSULTA"
@@ -163,8 +167,46 @@ def tratar_estado_captcha_processo(processo_id, status, resultado):
         limpar_caminho_solicitacao_captcha(processo_id)
 
 
+async def processar_processo_individual(processo, resumo, eventos_processos):
+    resultado = await rotear_consulta_processo(
+        processo=processo,
+        modo_silencioso_sem_robo=True,
+    )
+
+    status = resultado.get("status", "OK")
+
+    incrementar_resumo(resumo, status)
+
+    eventos_processos.append(
+        criar_evento_processo(processo, resultado)
+    )
+
+    if status == STATUS_SEM_ROBO_CONFIGURADO:
+        registrar_orgao_sem_robo(resumo, processo)
+
+    return resultado
+
+
+async def worker(resumo, eventos_processos):
+    while True:
+        try:
+            processo = await fila_processos.get()
+
+            await processar_processo_individual(
+                processo,
+                resumo,
+                eventos_processos
+            )
+
+            fila_processos.task_done()
+
+        except asyncio.CancelledError:
+            break
+
 
 async def monitorar_processos_ativos():
+    import asyncio
+
     inicio_execucao = datetime.now()
     resumo = criar_resumo_execucao()
     eventos_processos = []
@@ -192,7 +234,6 @@ async def monitorar_processos_ativos():
     # ==========================================================
     # ✅ AGRUPA PROCESSOS POR ROBÔ
     # ==========================================================
-
     processos_por_robo = {}
 
     for processo in processos:
@@ -202,7 +243,6 @@ async def monitorar_processos_ativos():
     # ==========================================================
     # ✅ EXECUÇÃO POR ROBÔ
     # ==========================================================
-
     for nome_robo, lista_processos in processos_por_robo.items():
 
         print(f"\n🚀 Processando robô: {nome_robo}")
@@ -214,11 +254,9 @@ async def monitorar_processos_ativos():
         if nome_robo == "franco_rocha":
 
             try:
-                # ✅ faz consulta UMA VEZ
                 resultado_lista = await consultar_processo_franco_rocha(lista_processos[0])
 
                 texto = resultado_lista.get("texto_completo", "")
-                texto_lower = texto.lower()
 
                 for processo in lista_processos:
 
@@ -232,8 +270,6 @@ async def monitorar_processos_ativos():
                             "mensagem": "Processo não encontrado na lista",
                         }
                     else:
-                        import re
-
                         linhas = texto.split("\n")
 
                         linha_processo = None
@@ -242,10 +278,10 @@ async def monitorar_processos_ativos():
                                 linha_processo = linha
                                 break
 
-                        # ✅ status padrão
                         status_processo = "Em andamento"
 
-                        # ✅ pega última data da linha
+                        import re
+
                         datas = re.findall(r"\d{2}/\d{2}/\d{4}", linha_processo or "")
 
                         data_ultimo_movimento = None
@@ -283,29 +319,29 @@ async def monitorar_processos_ativos():
             continue
 
         # ======================================================
-        # ✅ OUTROS ROBÔS (MODO NORMAL)
+        # ✅ OUTROS ROBÔS (AGORA PARALELO ⚡)
         # ======================================================
 
+        # 🔥 adiciona processos na fila
         for processo in lista_processos:
-            resultado = await rotear_consulta_processo(
-                processo=processo,
-                modo_silencioso_sem_robo=True,
-            )
+            await fila_processos.put(processo)
 
-            status = resultado.get("status", "OK")
-            incrementar_resumo(resumo, status)
+        # 🔥 cria workers (consumidores)
+        workers = [
+            asyncio.create_task(worker(resumo, eventos_processos))
+            for _ in range(5)
+        ]
 
-            eventos_processos.append(
-                criar_evento_processo(processo, resultado)
-            )
+        # 🔥 espera terminar tudo
+        await fila_processos.join()
 
-            if status == STATUS_SEM_ROBO_CONFIGURADO:
-                registrar_orgao_sem_robo(resumo, processo)
+        # 🔥 finaliza workers
+        for w in workers:
+            w.cancel()
 
     # ==========================================================
     # ✅ FINALIZA EXECUÇÃO
     # ==========================================================
-
     exibir_resumo_execucao(resumo, inicio_execucao)
 
     caminho_relatorio = salvar_relatorio_execucao(
@@ -556,6 +592,15 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
             nome_robo="franco_rocha",
             funcao_consulta=consultar_processo_franco_rocha,
         )
+    
+    if nome_robo == "ponta_grossa":
+        from robots.ponta_grossa.robot import consultar_processo_ponta_grossa
+
+        return await consultar_com_robo(
+            processo=processo,
+            nome_robo="ponta_grossa",
+            funcao_consulta=consultar_processo_ponta_grossa,
+        )
 
 
     registrar_historico_consulta(
@@ -568,3 +613,27 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
         "status": STATUS_SEM_ROBO_CONFIGURADO,
         "mensagem": f"Não existe robô configurado para: {nome_robo}",
     }
+
+async def scheduler_monitoramento():
+    print("\n🚀 MODO AUTOMÁTICO INICIADO")
+
+    while True:
+        agora = datetime.now()
+
+        print("\n========================================")
+        print(f"⏱️ Execução iniciada em: {agora.strftime('%d/%m/%Y %H:%M:%S')}")
+        print("========================================")
+
+        try:
+            await monitorar_processos_ativos()
+        except Exception as e:
+            print(f"❌ Erro na execução automática: {e}")
+
+        # calcula tempo até próxima hora cheia
+        agora = datetime.now()
+        segundos_passados = agora.minute * 60 + agora.second
+        segundos_restantes = 3600 - segundos_passados
+
+        print(f"\n⏳ Próxima execução em {segundos_restantes} segundos...")
+
+        await asyncio.sleep(segundos_restantes)

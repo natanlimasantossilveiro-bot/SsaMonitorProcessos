@@ -7,6 +7,7 @@ from services.monitoramento_service import (
     validar_orgaos_importados,
     monitorar_processos_ativos,
     monitorar_um_processo_teste,
+    scheduler_monitoramento,
 )
 
 from services.captcha_simulador_service import (
@@ -61,6 +62,7 @@ def exibir_menu():
     print("6 - Abrir pasta de evidências")
     print("7 - Abrir pasta de captchas")
     print("8 - Simular resposta de captcha")
+    print("9 - Iniciar monitoramento automático (hora em hora)")
     print("0 - Sair")
 
     return input("\nEscolha uma opção: ").strip()
@@ -93,6 +95,10 @@ async def main():
 
         elif opcao == "8":
             simular_resposta_captcha()
+
+        elif opcao == "9":
+            print("\n🚀 Iniciando monitoramento automático...")
+            await scheduler_monitoramento() 
 
         elif opcao == "0":
             print("\nEncerrando sistema...")

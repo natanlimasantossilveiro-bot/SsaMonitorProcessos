@@ -142,8 +142,8 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
             dados["exercicio"],
             dados["codigo"],
             dados["acesso"],
-            dados.get("login"),
-            dados.get("senha"),
+            dados.get("login_acesso") or dados.get("Login"),
+            dados.get("senha_acesso") or dados.get("Senha"),
             dados["empresa"],
             processo_existente["id"]
         ))
@@ -167,8 +167,8 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
             dados["numero_processo"],
             dados["codigo"],
             dados["acesso"],
-            dados.get("login"),
-            dados.get("senha"),
+            dados.get("login_acesso") or dados.get("Login"),
+            dados.get("senha_acesso") or dados.get("Senha"),
             dados["empresa"]
         ))
 
