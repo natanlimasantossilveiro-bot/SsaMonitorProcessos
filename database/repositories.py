@@ -226,26 +226,30 @@ def listar_processos_ativos_com_orgao():
 # =====================================================
 # ✅ ATUALIZAÇÃO
 # =====================================================
+
 def atualizar_dados_processo(
     processo_id,
-    status_atual,
+    status_processo,
     data_ultimo_movimento,
-    ultima_movimentacao
+    ultima_movimentacao,
+    monitorado
 ):
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
     cursor.execute("""
         UPDATE processos SET
-            status_atual = %s,
+            status_processo = %s,
             data_ultimo_movimento = %s,
             ultima_movimentacao = %s,
+            monitorado = %s,
             ultima_consulta = NOW()
         WHERE id = %s
     """, (
-        status_atual,
+        status_processo,
         data_ultimo_movimento,
         ultima_movimentacao,
+        monitorado,
         processo_id
     ))
 

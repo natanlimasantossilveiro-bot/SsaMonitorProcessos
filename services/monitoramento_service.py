@@ -18,6 +18,8 @@ from robots.sjp.robot import consultar_processo_sjp
 
 from database.repositories import atualizar_dados_processo
 
+from robots.franco_rocha.robot import consultar_processo_franco_rocha
+
 
 STATUS_SEM_ROBO_CONFIGURADO = "SEM_ROBO_CONFIGURADO"
 STATUS_ERRO_CONSULTA = "ERRO_CONSULTA"
@@ -161,13 +163,13 @@ def tratar_estado_captcha_processo(processo_id, status, resultado):
         limpar_caminho_solicitacao_captcha(processo_id)
 
 
+
 async def monitorar_processos_ativos():
     inicio_execucao = datetime.now()
     resumo = criar_resumo_execucao()
     eventos_processos = []
 
     processos = listar_processos_ativos_com_orgao()
-
     resumo["TOTAL_PROCESSOS"] = len(processos)
 
     print("\n=== MONITORAMENTO DE PROCESSOS ATIVOS ===")
@@ -185,25 +187,124 @@ async def monitorar_processos_ativos():
         )
 
         print(f"\nRelatório salvo em: {caminho_relatorio}")
-
         return
 
+    # ==========================================================
+    # ✅ AGRUPA PROCESSOS POR ROBÔ
+    # ==========================================================
+
+    processos_por_robo = {}
+
     for processo in processos:
-        resultado = await rotear_consulta_processo(
-            processo=processo,
-            modo_silencioso_sem_robo=True,
-        )
+        nome_robo = processo.get("robo") or processo.get("chave_robo")
+        processos_por_robo.setdefault(nome_robo, []).append(processo)
 
-        status = resultado.get("status", "OK")
+    # ==========================================================
+    # ✅ EXECUÇÃO POR ROBÔ
+    # ==========================================================
 
-        incrementar_resumo(resumo, status)
+    for nome_robo, lista_processos in processos_por_robo.items():
 
-        eventos_processos.append(
-            criar_evento_processo(processo, resultado)
-        )
+        print(f"\n🚀 Processando robô: {nome_robo}")
+        print(f"Total de processos: {len(lista_processos)}")
 
-        if status == STATUS_SEM_ROBO_CONFIGURADO:
-            registrar_orgao_sem_robo(resumo, processo)
+        # ======================================================
+        # 🔥 FRANCO DA ROCHA (MODO OTIMIZADO)
+        # ======================================================
+        if nome_robo == "franco_rocha":
+
+            try:
+                # ✅ faz consulta UMA VEZ
+                resultado_lista = await consultar_processo_franco_rocha(lista_processos[0])
+
+                texto = resultado_lista.get("texto_completo", "")
+                texto_lower = texto.lower()
+
+                for processo in lista_processos:
+
+                    numero = str(processo.get("numero_processo"))
+
+                    print(f"\n🔎 Processando processo {numero}")
+
+                    if numero not in texto:
+                        resultado_individual = {
+                            "status": "PROCESSO_NAO_ENCONTRADO",
+                            "mensagem": "Processo não encontrado na lista",
+                        }
+                    else:
+                        import re
+
+                        linhas = texto.split("\n")
+
+                        linha_processo = None
+                        for linha in linhas:
+                            if numero in linha:
+                                linha_processo = linha
+                                break
+
+                        # ✅ status padrão
+                        status_processo = "Em andamento"
+
+                        # ✅ pega última data da linha
+                        datas = re.findall(r"\d{2}/\d{2}/\d{4}", linha_processo or "")
+
+                        data_ultimo_movimento = None
+                        if datas:
+                            data_convertida = datetime.strptime(datas[-1], "%d/%m/%Y")
+                            data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
+
+                        resultado_individual = {
+                            "status": "OK",
+                            "mensagem": "Consulta realizada com sucesso",
+                            "status_processo": status_processo,
+                            "ultima_data_movimento": data_ultimo_movimento,
+                            "ultima_movimentacao": linha_processo,
+                        }
+
+                    status = resultado_individual.get("status", "OK")
+                    incrementar_resumo(resumo, status)
+
+                    eventos_processos.append(
+                        criar_evento_processo(processo, resultado_individual)
+                    )
+
+                    async def retorno_fixo(_):
+                        return resultado_individual
+
+                    await consultar_com_robo(
+                        processo=processo,
+                        nome_robo="franco_rocha",
+                        funcao_consulta=retorno_fixo,
+                    )
+
+            except Exception as e:
+                print(f"❌ Erro no robô Franco da Rocha: {e}")
+
+            continue
+
+        # ======================================================
+        # ✅ OUTROS ROBÔS (MODO NORMAL)
+        # ======================================================
+
+        for processo in lista_processos:
+            resultado = await rotear_consulta_processo(
+                processo=processo,
+                modo_silencioso_sem_robo=True,
+            )
+
+            status = resultado.get("status", "OK")
+            incrementar_resumo(resumo, status)
+
+            eventos_processos.append(
+                criar_evento_processo(processo, resultado)
+            )
+
+            if status == STATUS_SEM_ROBO_CONFIGURADO:
+                registrar_orgao_sem_robo(resumo, processo)
+
+    # ==========================================================
+    # ✅ FINALIZA EXECUÇÃO
+    # ==========================================================
 
     exibir_resumo_execucao(resumo, inicio_execucao)
 
@@ -280,22 +381,24 @@ async def consultar_com_robo(
         status = resultado.get("status", "OK")
         mensagem = resultado.get("mensagem", "")
 
-        # =====================================================
-        # ✅ ATUALIZAÇÃO DO PROCESSO (NOVO BLOCO)
-        # =====================================================
-
         print("\n🔥 DEBUG UPDATE")
-
         print("Status geral:", status)
         print("Resultado:", resultado)
 
         movimentacoes = resultado.get("movimentacoes") or []
 
+        # ✅ NÃO MASCARA MAIS
         status_processo = resultado.get("status_processo")
+
         data_ultimo_movimento = None
         ultima_movimentacao = None
 
-        # ✅ CASO 1: robôs com movimentações (ESIC / SJP)
+        # ✅ DEFINE SE FOI MONITORADO DE VERDADE
+        monitorado = 1 if status == "OK" else 0
+
+        # =====================================================
+        # CASO 1: COM MOVIMENTAÇÕES
+        # =====================================================
         if movimentacoes:
             print("✅ Entrou no bloco de movimentações")
 
@@ -312,16 +415,17 @@ async def consultar_com_robo(
                     data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
                     break
 
-        # ✅ CASO 2: robôs com dados estruturados (Curitiba)
+        # =====================================================
+        # CASO 2: DADOS DIRETOS
+        # =====================================================
         elif resultado.get("ultima_data_movimento"):
-            print("✅ Entrou no bloco estruturado (dados diretos)")
+            print("✅ Entrou no bloco estruturado")
 
             data_str = resultado.get("ultima_data_movimento")
             ultima_movimentacao = resultado.get("ultima_movimentacao")
 
             try:
                 if "-" in data_str:
-                    # já está no formato certo (YYYY-MM-DD)
                     data_ultimo_movimento = data_str
                 else:
                     data_convertida = datetime.strptime(data_str, "%d/%m/%Y")
@@ -330,21 +434,25 @@ async def consultar_com_robo(
                 data_ultimo_movimento = None
 
         else:
-            print("❌ Sem dados para atualização")
+            print("❌ Sem dados válidos (não monitorado)")
 
-        # ✅ ATUALIZAÇÃO FINAL
-        if status_processo or ultima_movimentacao:
-            print("⚙️ Atualizando banco...")
-            print("Processo:", processo_id)
-            print("Status:", status_processo)
-            print("Data:", data_ultimo_movimento)
+        # =====================================================
+        # ✅ ATUALIZA SOMENTE SE FOI MONITORADO
+        # =====================================================
+        print("⚙️ Atualizando banco (sempre)")
 
-            atualizar_dados_processo(
-                processo_id,
-                status_processo,
-                data_ultimo_movimento,
-                ultima_movimentacao,
-            )
+        atualizar_dados_processo(
+            processo_id,
+            status_processo,
+            data_ultimo_movimento,
+            ultima_movimentacao,
+            monitorado
+        )
+
+        if monitorado:
+            print("✅ Monitorado com sucesso")
+        else:
+            print("🚫 Não monitorado (falha na consulta)")
 
         tratar_estado_captcha_processo(
             processo_id=processo_id,
@@ -441,6 +549,14 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
             nome_robo="caieiras",
             funcao_consulta=consultar_processo_caieiras,
         )
+    
+    if nome_robo == "franco_rocha":
+        return await consultar_com_robo(
+            processo=processo,
+            nome_robo="franco_rocha",
+            funcao_consulta=consultar_processo_franco_rocha,
+        )
+
 
     registrar_historico_consulta(
         processo_id=processo_id,
