@@ -327,46 +327,110 @@ class RobotAtendeNetV2:
         apareceu (o que é esperado às vezes, dependendo do site).
         """
         try:
-            # Texto visto no modal real: "Verificação de acesso"
-            modal = page.locator("text=Verificação de acesso").first
+            # ALTERAÇÃO (correção de bug): page.locator() NÃO desce dentro
+            # de iframes. O diagnóstico confirmou que o modal "Verificação
+            # de acesso" vive dentro do iframe "embed" (frame[1] na URL
+            # .../servicos/embed/data/...), não na page principal. Por isso
+            # a busca anterior (page.locator) nunca encontrava o modal,
+            # mesmo ele estando visivelmente presente.
+            #
+            # Agora varremos page.frames (igual ao script de diagnóstico
+            # que confirmou onde o modal está) e operamos tudo dentro do
+            # frame correto: sitekey, token, checkbox e botão "Fechar".
+            frame_modal = None
 
-            if await modal.count() == 0:
-                print("ℹ️ Modal 'Verificação de acesso' não apareceu — seguindo fluxo normal.")
-                return False
-
-            print("🔒 Modal 'Verificação de acesso' detectado. Resolvendo captcha...")
-
-            # ALTERAÇÃO: o modal pode estar na página principal ou em um
-            # iframe aninhado dentro dela. Testamos os dois contextos para
-            # achar o reCAPTCHA, em vez de assumir um dos dois de antemão.
-            contexto_captcha = page
             for f in page.frames:
                 try:
-                    if await f.locator("iframe[src*='recaptcha'], [data-sitekey]").count() > 0:
-                        contexto_captcha = f
-                        break
+                    html_frame = await f.content()
                 except Exception:
                     continue
 
-            site_key = await capturar_sitekey(contexto_captcha)
+                if "verificação de acesso" in html_frame.lower():
+                    frame_modal = f
+                    break
+
+            if not frame_modal:
+                print("ℹ️ Modal 'Verificação de acesso' não apareceu — seguindo fluxo normal.")
+                return False
+
+            print(f"🔒 Modal 'Verificação de acesso' detectado no frame: {frame_modal.url}")
+
+            site_key = await capturar_sitekey(frame_modal)
 
             if not site_key:
-                print(f"⚠️ Sitekey do modal não encontrada automaticamente — usando fallback padrão.")
+                print("⚠️ Sitekey do modal não encontrada automaticamente — usando fallback padrão.")
                 site_key = SITEKEY_PADRAO_PINHAIS
 
             print(f"✅ Sitekey do modal: {site_key}")
 
             token = await resolver_captcha(site_key, url)
 
-            await injetar_token_recaptcha(contexto_captcha, token)
+            await injetar_token_recaptcha(frame_modal, token)
 
             print("✅ Token do modal injetado")
 
+            # ALTERAÇÃO (tentativa de correção): muitos sites com reCAPTCHA v2
+            # usam um atributo data-callback (uma função JS) que só é chamada
+            # quando o usuário resolve o captcha DE VERDADE pela UI do Google.
+            # Só preencher a textarea com o token não dispara esse callback —
+            # e pode ser exatamente por isso que o formulário não aparece
+            # depois (o site está esperando o callback rodar para liberar
+            # o conteúdo). Aqui tentamos achar e chamar esse callback manualmente.
+            try:
+                callback_executado = await frame_modal.evaluate(
+                    """
+                    (token) => {
+                        const el = document.querySelector('[data-callback]');
+                        if (!el) return 'sem_elemento_data_callback';
+
+                        const nomeFuncao = el.getAttribute('data-callback');
+                        if (!nomeFuncao) return 'atributo_vazio';
+
+                        // a função pode estar no escopo global (window) ou
+                        // dentro de algum namespace comum nesses sistemas
+                        const fn = window[nomeFuncao];
+                        if (typeof fn === 'function') {
+                            fn(token);
+                            return 'executado:' + nomeFuncao;
+                        }
+
+                        return 'funcao_nao_encontrada:' + nomeFuncao;
+                    }
+                    """,
+                    token,
+                )
+                print(f"🔧 Tentativa de disparar callback do reCAPTCHA: {callback_executado}")
+            except Exception as e:
+                print(f"ℹ️ Não foi possível tentar o callback manual: {e}")
+
             await page.wait_for_timeout(1500)
+
+            # ALTERAÇÃO (diagnóstico): salva screenshot + HTML do frame do
+            # modal NESTE EXATO MOMENTO (token já injetado, callback já
+            # tentado, mas ANTES de clicar em "Fechar"). Isso é temporário,
+            # só para confirmarmos visualmente o que está na tela aqui —
+            # pode ser removido depois que o fluxo estiver 100% validado.
+            try:
+                import os
+                pasta_debug = "evidencias/debug_modal"
+                os.makedirs(pasta_debug, exist_ok=True)
+
+                await page.screenshot(path=os.path.join(pasta_debug, "apos_token_antes_fechar.png"), full_page=True)
+
+                html_frame_modal = await frame_modal.content()
+                with open(os.path.join(pasta_debug, "apos_token_antes_fechar.html"), "w", encoding="utf-8") as fh:
+                    fh.write(html_frame_modal)
+
+                print(f"📸 Evidência de debug salva em: {pasta_debug}/")
+            except Exception as e:
+                print(f"ℹ️ Não foi possível salvar evidência de debug: {e}")
 
             # Tenta clicar no checkbox "Não sou um robô" também, caso o
             # site exija o clique além do token (alguns fluxos checam os
             # dois: o valor da textarea E o estado "checked" do checkbox).
+            # O checkbox vive em um SUB-iframe do Google (api2/anchor),
+            # então buscamos esse sub-frame entre TODOS os frames da página
+            # (não só os filhos diretos de frame_modal, por segurança).
             try:
                 checkbox_frame = None
                 for f in page.frames:
@@ -381,12 +445,25 @@ class RobotAtendeNetV2:
             except Exception as e:
                 print(f"ℹ️ Não foi possível clicar no checkbox do modal (pode já estar resolvido via token): {e}")
 
-            # Fecha o modal se ele tiver um botão "Fechar" e ainda estiver visível
+            # ALTERAÇÃO: damos um tempo maior aqui (5s) antes de decidir
+            # fechar manualmente. A hipótese é que o site processa o
+            # callback/token de forma assíncrona (pode chamar o servidor
+            # para validar) e só depois libera o formulário. Fechar o
+            # modal cedo demais pode interromper esse processamento.
+            await page.wait_for_timeout(5000)
+
+            # Fecha o modal se ele tiver um botão "Fechar" e ainda estiver
+            # visível — o botão também está dentro de frame_modal, não na page.
             try:
-                botao_fechar = page.locator("button:has-text('Fechar')").first
-                if await botao_fechar.count() > 0 and await botao_fechar.is_visible():
+                botao_fechar = frame_modal.locator("button:has-text('Fechar')").first
+                ainda_visivel = await botao_fechar.count() > 0 and await botao_fechar.is_visible()
+                print(f"ℹ️ Botão 'Fechar' ainda visível após espera: {ainda_visivel}")
+
+                if ainda_visivel:
                     await botao_fechar.click()
                     print("✅ Modal fechado manualmente")
+                else:
+                    print("✅ Modal já não estava mais visível (provavelmente fechou sozinho)")
             except Exception as e:
                 print(f"ℹ️ Botão 'Fechar' do modal não encontrado/clicável: {e}")
 
