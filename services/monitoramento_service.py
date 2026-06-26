@@ -10,7 +10,7 @@ from database.repositories import (
 
 from robots.curitiba.robot import consultar_processo_curitiba
 
-from robots.atendenet_v2.robot import consultar_processo_atende_net
+from robots.atendenet_v2.robot import consultar_processo_pinhais
 
 from services.relatorio_execucao_service import salvar_relatorio_execucao
 
@@ -554,13 +554,6 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
             funcao_consulta=consultar_processo_curitiba,
         )
 
-    if nome_robo == "atende_net":
-        return await consultar_com_robo(
-            processo=processo,
-            nome_robo="atende_net",
-            funcao_consulta=consultar_processo_atende_net,
-        )
-
     if nome_robo == "sjp":
         return await consultar_com_robo(
             processo=processo,
@@ -600,6 +593,15 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
             processo=processo,
             nome_robo="ponta_grossa",
             funcao_consulta=consultar_processo_ponta_grossa,
+        )
+    
+    if nome_robo == "pinhais":
+        from robots.atendenet_v2.robot import consultar_processo_pinhais
+
+        return await consultar_com_robo(
+            processo=processo,
+            nome_robo="pinhais",
+            funcao_consulta=consultar_processo_pinhais,
         )
 
 
