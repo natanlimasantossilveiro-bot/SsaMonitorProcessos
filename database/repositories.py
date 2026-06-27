@@ -240,12 +240,14 @@ def atualizar_dados_processo(
     cursor.execute("""
         UPDATE processos SET
             status_processo = %s,
+            status_atual = %s,
             data_ultimo_movimento = %s,
             ultima_movimentacao = %s,
             monitorado = %s,
             ultima_consulta = NOW()
         WHERE id = %s
     """, (
+        status_processo,
         status_processo,
         data_ultimo_movimento,
         ultima_movimentacao,

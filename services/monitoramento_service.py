@@ -4,6 +4,7 @@ from database.repositories import (
     listar_orgaos,
     listar_processos_ativos_com_orgao,
     registrar_historico_consulta,
+    registrar_movimentacao,
     atualizar_caminho_solicitacao_captcha,
     limpar_caminho_solicitacao_captcha,
 )
@@ -417,9 +418,7 @@ async def consultar_com_robo(
         status = resultado.get("status", "OK")
         mensagem = resultado.get("mensagem", "")
 
-        print("\n🔥 DEBUG UPDATE")
-        print("Status geral:", status)
-        print("Resultado:", resultado)
+
 
         movimentacoes = resultado.get("movimentacoes") or []
 
@@ -450,6 +449,18 @@ async def consultar_com_robo(
                     data_convertida = datetime.strptime(data_str, "%d/%m/%Y")
                     data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
                     break
+
+            # Salva cada movimentação individual (apenas as que têm data)
+            # na tabela movimentacoes — alimenta o dashboard "Últimas movimentações"
+            for movimento in movimentacoes:
+                match = re.search(r"\d{2}/\d{2}/\d{4}", movimento)
+                if match:
+                    try:
+                        data_str = match.group()
+                        data_mov = datetime.strptime(data_str, "%d/%m/%Y").strftime("%Y-%m-%d")
+                        registrar_movimentacao(processo_id, data_mov, movimento[:500])
+                    except Exception:
+                        pass
 
         # =====================================================
         # CASO 2: DADOS DIRETOS
@@ -524,9 +535,6 @@ async def consultar_com_robo(
 
 
 async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
-
-    print("\n🔥 DEBUG PROCESSO COMPLETO:")
-    print(processo)
 
     processo_id = processo.get("id")
     numero_processo = processo.get("numero_processo")
