@@ -1,0 +1,25 @@
+[Unit]
+Description=SSA Monitor Processos — Monitoramento Automático (hora em hora)
+After=network.target mysql.service ssa-dashboard.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=ssa
+Group=ssa
+WorkingDirectory=/opt/ssa-monitor
+EnvironmentFile=/opt/ssa-monitor/.env
+# Opção 9 do menu: scheduler automático
+ExecStart=/opt/ssa-monitor/.venv/bin/python -c "
+import asyncio, sys
+sys.path.insert(0, '/opt/ssa-monitor')
+from services.monitoramento_service import scheduler_monitoramento
+asyncio.run(scheduler_monitoramento())
+"
+Restart=always
+RestartSec=30
+StandardOutput=append:/var/log/ssa-monitor/monitor.log
+StandardError=append:/var/log/ssa-monitor/monitor.log
+
+[Install]
+WantedBy=multi-user.target

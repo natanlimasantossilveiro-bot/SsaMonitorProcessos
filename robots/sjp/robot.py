@@ -20,17 +20,14 @@ class RobotSJP(RobotBase):
 # =====================================================
 async def executar_consulta_sjp(processo):
 
-    print("🔍 DEBUG PROCESSO:", processo)
-
     async with async_playwright() as p:
 
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
         url = "https://protocolo.sjp.pr.gov.br/servicos/protocolo-digital/controller/consultar_protocolo.php"
 
         await page.goto(url)
-        print("🔍 Página carregada")
 
         # =====================================================
         # ✅ PREENCHER NÚMERO (CORRIGIDO)

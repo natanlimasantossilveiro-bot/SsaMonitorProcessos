@@ -132,8 +132,70 @@ def buscar_ultimas_consultas():
 
 def buscar_total_movimentacoes_recentes():
     resultado = executar_query_unica("""
-        SELECT COUNT(*) AS total
-        FROM movimentacoes
-        WHERE DATE(data_movimento) = CURDATE();
+        SELECT COUNT(DISTINCT m.processo_id) AS total
+        FROM movimentacoes m
+        WHERE DATE(m.capturado_em) = CURDATE();
     """)
     return resultado["total"]
+
+
+def buscar_movimentacoes_hoje_por_orgao():
+    """Agrupa movimentações de hoje por prefeitura — para o mini-gráfico do card."""
+    return executar_query("""
+        SELECT
+            o.nome AS orgao,
+            COUNT(DISTINCT m.processo_id) AS total_processos,
+            COUNT(*) AS total_movimentacoes
+        FROM movimentacoes m
+        INNER JOIN processos p ON m.processo_id = p.id
+        INNER JOIN orgaos o ON p.orgao_id = o.id
+        WHERE DATE(m.capturado_em) = CURDATE()
+        GROUP BY o.id, o.nome
+        ORDER BY total_processos DESC;
+    """)
+
+
+def buscar_detalhe_movimentacoes_hoje():
+    """Retorna todos os processos ativos com indicação se tiveram movimento hoje."""
+    return executar_query("""
+        SELECT
+            p.id AS processo_id,
+            p.numero_processo,
+            p.empresa,
+            o.nome AS orgao,
+            p.status_atual,
+            p.ultima_consulta,
+            p.data_ultimo_movimento,
+            COUNT(m.id) AS total_movimentacoes_hoje,
+            MAX(m.capturado_em) AS ultima_captura_hoje,
+            MAX(m.descricao) AS ultima_descricao_hoje
+        FROM processos p
+        INNER JOIN orgaos o ON p.orgao_id = o.id
+        LEFT JOIN movimentacoes m
+            ON m.processo_id = p.id
+            AND DATE(m.capturado_em) = CURDATE()
+        WHERE p.ativo = TRUE
+        GROUP BY p.id, p.numero_processo, p.empresa, o.nome,
+                 p.status_atual, p.ultima_consulta, p.data_ultimo_movimento
+        ORDER BY total_movimentacoes_hoje DESC, o.nome, p.numero_processo;
+    """)
+
+
+def buscar_movimentacoes_de_processo_hoje(processo_id):
+    """Retorna todas as movimentações de um processo específico capturadas hoje."""
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT
+            m.data_movimento,
+            m.descricao,
+            m.capturado_em
+        FROM movimentacoes m
+        WHERE m.processo_id = %s
+          AND DATE(m.capturado_em) = CURDATE()
+        ORDER BY m.id ASC
+    """, (processo_id,))
+    resultado = cursor.fetchall()
+    cursor.close()
+    conexao.close()
+    return resultado

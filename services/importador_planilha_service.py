@@ -26,12 +26,24 @@ def normalizar_valor(valor):
     return str(valor).strip()
 
 
+MAPA_ROBO_POR_URL = [
+    # (fragmento_de_url, chave_robo)
+    ("consultaprotocolo.curitiba.pr.gov.br", "curitiba"),
+    ("protocolo.sjp.pr.gov.br",              "sjp"),
+    ("esic.sjp.pr.gov.br",                   "esic"),
+    ("caieiras.sp.gov.br",                   "caieiras"),
+    ("francodarocha.sp.gov.br",              "franco_rocha"),
+    ("pontagrossa.pr.gov.br",               "ponta_grossa"),
+    ("pinhais.atende.net",                   "pinhais"),
+    ("araucaria.atende.net",                 "atende_net"),
+]
+
+
 def identificar_chave_robo(acesso):
-    acesso_normalizado = acesso.lower()
-
-    if "consultaprotocolo.curitiba.pr.gov.br" in acesso_normalizado:
-        return "curitiba"
-
+    acesso_norm = acesso.lower()
+    for fragmento, chave in MAPA_ROBO_POR_URL:
+        if fragmento in acesso_norm:
+            return chave
     return None
 
 

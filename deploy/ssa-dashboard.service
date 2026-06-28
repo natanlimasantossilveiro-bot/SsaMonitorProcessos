@@ -1,0 +1,21 @@
+[Unit]
+Description=SSA Monitor Processos — Dashboard Web
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=ssa
+Group=ssa
+WorkingDirectory=/opt/ssa-monitor
+EnvironmentFile=/opt/ssa-monitor/.env
+Environment=DASHBOARD_HOST=0.0.0.0
+Environment=DASHBOARD_PORT=8000
+ExecStart=/opt/ssa-monitor/.venv/bin/python -m dashboard.app
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/ssa-monitor/dashboard.log
+StandardError=append:/var/log/ssa-monitor/dashboard.log
+
+[Install]
+WantedBy=multi-user.target

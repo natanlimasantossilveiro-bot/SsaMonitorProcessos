@@ -14,7 +14,7 @@ async def consultar_processo_ponta_grossa(processo):
 
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
+            browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
 
             # ==================================================

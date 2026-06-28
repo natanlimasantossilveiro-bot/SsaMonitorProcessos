@@ -51,7 +51,7 @@ async def consultar_processo_curitiba(processo):
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
-                headless=False
+                headless=True
             )
 
             page = await browser.new_page()
