@@ -1,28 +1,24 @@
 from datetime import datetime
+import asyncio
 
 from database.repositories import (
     listar_orgaos,
     listar_processos_ativos_com_orgao,
     registrar_historico_consulta,
     registrar_movimentacao,
+    atualizar_dados_processo,
     atualizar_caminho_solicitacao_captcha,
     limpar_caminho_solicitacao_captcha,
 )
 
 from robots.curitiba.robot import consultar_processo_curitiba
-
 from robots.atendenet_v2.robot import consultar_processo_pinhais
-
-from services.relatorio_execucao_service import salvar_relatorio_execucao
-
 from robots.sjp.robot import consultar_processo_sjp
-
-from database.repositories import atualizar_dados_processo
-
 from robots.franco_rocha.robot import consultar_processo_franco_rocha
+from services.relatorio_execucao_service import salvar_relatorio_execucao
+from utils.logger import get_logger
 
-import asyncio
-
+log = get_logger("monitoramento")
 fila_processos = asyncio.Queue()
 
 
@@ -96,51 +92,38 @@ def exibir_resumo_execucao(resumo, inicio_execucao):
     fim_execucao = datetime.now()
     tempo_total = (fim_execucao - inicio_execucao).total_seconds()
 
-    print("\n========================================")
-    print("RESUMO DA EXECUÇÃO")
-    print("========================================")
-    print(f"Total de processos: {resumo.get('TOTAL_PROCESSOS', 0)}")
-    print(f"Nova movimentação: {resumo.get('NOVA_MOVIMENTACAO', 0)}")
-    print(f"Sem nova movimentação: {resumo.get('SEM_NOVA_MOVIMENTACAO', 0)}")
-    print(f"Processo não encontrado: {resumo.get('PROCESSO_NAO_ENCONTRADO', 0)}")
-    print(f"Erro de consulta: {resumo.get('ERRO_CONSULTA', 0)}")
-    print(f"Sistema fora: {resumo.get('SISTEMA_FORA', 0)}")
-    print(f"Sem robô configurado: {resumo.get('SEM_ROBO_CONFIGURADO', 0)}")
-    print(f"Pendente integração captcha: {resumo.get('PENDENTE_INTEGRACAO_CAPTCHA', 0)}")
-    print(
-        "Captcha resolvido com fluxo pendente: "
-        f"{resumo.get('CAPTCHA_RESOLVIDO_FLUXO_PENDENTE', 0)}"
-    )
-    print(f"OK: {resumo.get('OK', 0)}")
-    print(f"Tempo total: {formatar_tempo(tempo_total)}")
-    print("========================================")
+    log.info("=" * 50)
+    log.info("RESUMO DA EXECUCAO")
+    log.info(f"  Total de processos     : {resumo.get('TOTAL_PROCESSOS', 0)}")
+    log.info(f"  OK                     : {resumo.get('OK', 0)}")
+    log.info(f"  Nova movimentacao      : {resumo.get('NOVA_MOVIMENTACAO', 0)}")
+    log.info(f"  Sem nova movimentacao  : {resumo.get('SEM_NOVA_MOVIMENTACAO', 0)}")
+    log.info(f"  Processo nao encontrado: {resumo.get('PROCESSO_NAO_ENCONTRADO', 0)}")
+    log.info(f"  Erro de consulta       : {resumo.get('ERRO_CONSULTA', 0)}")
+    log.info(f"  Sem robo configurado   : {resumo.get('SEM_ROBO_CONFIGURADO', 0)}")
+    log.info(f"  Tempo total            : {formatar_tempo(tempo_total)}")
+    log.info("=" * 50)
 
     if resumo.get("ORGAOS_SEM_ROBO"):
-        print("\n=== ÓRGÃOS/LINKS SEM ROBÔ CONFIGURADO ===")
-
+        log.warning("Orgaos sem robo configurado:")
         for item in resumo["ORGAOS_SEM_ROBO"].values():
-            print("\n----------------------------------------")
-            print(f"Órgão: {item['nome']}")
-            print(f"Total de processos: {item['total']}")
-            print(f"URL: {item['url']}")
+            log.warning(f"  {item['nome']} | processos: {item['total']} | url: {item['url']}")
 
 
 def validar_orgaos_importados():
     orgaos = listar_orgaos()
 
-    print("\n=== ÓRGÃOS / LINKS IMPORTADOS ===")
+    log.info("Orgaos/links importados:")
 
     if not orgaos:
-        print("Nenhum órgão encontrado no banco.")
+        log.warning("Nenhum orgao encontrado no banco.")
         return
 
     for orgao in orgaos:
-        print("\n----------------------------------------")
-        print(f"ID: {orgao.get('id')}")
-        print(f"Nome: {orgao.get('nome')}")
-        print(f"Tipo: {orgao.get('tipo')}")
-        print(f"URL: {orgao.get('url')}")
-        print(f"Chave robô: {orgao.get('chave_robo')}")
+        log.info(
+            f"  id={orgao.get('id')} | {orgao.get('nome')} | "
+            f"robo={orgao.get('chave_robo')} | url={orgao.get('url')}"
+        )
 
 
 def obter_caminho_solicitacao_resultado(resultado):
@@ -215,11 +198,10 @@ async def monitorar_processos_ativos():
     processos = listar_processos_ativos_com_orgao()
     resumo["TOTAL_PROCESSOS"] = len(processos)
 
-    print("\n=== MONITORAMENTO DE PROCESSOS ATIVOS ===")
-    print(f"Total de processos encontrados: {len(processos)}")
+    log.info(f"Iniciando monitoramento — {len(processos)} processo(s) ativos")
 
     if not processos:
-        print("Nenhum processo ativo encontrado.")
+        log.warning("Nenhum processo ativo encontrado")
 
         exibir_resumo_execucao(resumo, inicio_execucao)
 
@@ -229,12 +211,10 @@ async def monitorar_processos_ativos():
             eventos_processos=eventos_processos,
         )
 
-        print(f"\nRelatório salvo em: {caminho_relatorio}")
+        log.info(f"Relatorio salvo em: {caminho_relatorio}")
         return
 
-    # ==========================================================
-    # ✅ AGRUPA PROCESSOS POR ROBÔ
-    # ==========================================================
+    # Agrupa processos por robo
     processos_por_robo = {}
 
     for processo in processos:
@@ -246,8 +226,7 @@ async def monitorar_processos_ativos():
     # ==========================================================
     for nome_robo, lista_processos in processos_por_robo.items():
 
-        print(f"\n🚀 Processando robô: {nome_robo}")
-        print(f"Total de processos: {len(lista_processos)}")
+        log.info(f"Processando robo: {nome_robo} | {len(lista_processos)} processo(s)")
 
         # ======================================================
         # 🔥 FRANCO DA ROCHA (MODO OTIMIZADO)
@@ -263,7 +242,7 @@ async def monitorar_processos_ativos():
 
                     numero = str(processo.get("numero_processo"))
 
-                    print(f"\n🔎 Processando processo {numero}")
+                    log.info(f"Franco da Rocha: processando processo {numero}")
 
                     if numero not in texto:
                         resultado_individual = {
@@ -315,7 +294,7 @@ async def monitorar_processos_ativos():
                     )
 
             except Exception as e:
-                print(f"❌ Erro no robô Franco da Rocha: {e}")
+                log.error(f"Erro no robo Franco da Rocha: {e}")
 
             continue
 
@@ -351,7 +330,7 @@ async def monitorar_processos_ativos():
         eventos_processos=eventos_processos,
     )
 
-    print(f"\nRelatório salvo em: {caminho_relatorio}")
+    log.info(f"Relatorio salvo em: {caminho_relatorio}")
 
 
 async def monitorar_um_processo_teste():
@@ -369,19 +348,19 @@ async def monitorar_um_processo_teste():
             f"{processo.get('numero_processo')} | "
             f"{processo.get('empresa')} | "
             f"{processo.get('nome_orgao')} | "
-            f"Robô: {processo.get('robo') or processo.get('chave_robo')}"
+            f"Robo: {processo.get('robo') or processo.get('chave_robo')}"
         )
 
-    escolha = input("\nDigite o número do processo para testar: ").strip()
+    escolha = input("\nDigite o numero do processo para testar: ").strip()
 
     if not escolha.isdigit():
-        print("Opção inválida.")
+        print("Opcao invalida.")
         return
 
     indice_escolhido = int(escolha)
 
     if indice_escolhido < 1 or indice_escolhido > len(processos):
-        print("Processo não encontrado na lista.")
+        print("Processo nao encontrado na lista.")
         return
 
     processo = processos[indice_escolhido - 1]
@@ -404,13 +383,13 @@ async def consultar_com_robo(
 ):
     processo_id = processo.get("id")
 
-    print("\n========================================")
-    print(f"Processo ID: {processo_id}")
-    print(f"Número: {processo.get('numero_processo')}")
-    print(f"Empresa: {processo.get('empresa')}")
-    print(f"Município: {processo.get('municipio')}")
-    print(f"Órgão: {processo.get('nome_orgao')}")
-    print(f"Robô: {nome_robo}")
+    log.info(
+        f"Consultando processo {processo_id} | "
+        f"num={processo.get('numero_processo')} | "
+        f"empresa={processo.get('empresa')} | "
+        f"orgao={processo.get('nome_orgao')} | "
+        f"robo={nome_robo}"
+    )
 
     try:
         resultado = await funcao_consulta(processo)
@@ -435,7 +414,7 @@ async def consultar_com_robo(
         # CASO 1: COM MOVIMENTAÇÕES
         # =====================================================
         if movimentacoes:
-            print("✅ Entrou no bloco de movimentações")
+            log.debug("Processando bloco de movimentacoes")
 
             import re
 
@@ -466,7 +445,7 @@ async def consultar_com_robo(
         # CASO 2: DADOS DIRETOS
         # =====================================================
         elif resultado.get("ultima_data_movimento"):
-            print("✅ Entrou no bloco estruturado")
+            log.debug("Processando bloco estruturado (ultima_data_movimento)")
 
             data_str = resultado.get("ultima_data_movimento")
             ultima_movimentacao = resultado.get("ultima_movimentacao")
@@ -481,25 +460,20 @@ async def consultar_com_robo(
                 data_ultimo_movimento = None
 
         else:
-            print("❌ Sem dados válidos (não monitorado)")
-
-        # =====================================================
-        # ✅ ATUALIZA SOMENTE SE FOI MONITORADO
-        # =====================================================
-        print("⚙️ Atualizando banco (sempre)")
+            log.warning(f"Processo {processo_id}: consulta sem dados de movimentacao")
 
         atualizar_dados_processo(
             processo_id,
             status_processo,
             data_ultimo_movimento,
             ultima_movimentacao,
-            monitorado
+            monitorado,
         )
 
         if monitorado:
-            print("✅ Monitorado com sucesso")
+            log.info(f"Processo {processo_id} monitorado — status: {status_processo}")
         else:
-            print("🚫 Não monitorado (falha na consulta)")
+            log.warning(f"Processo {processo_id} nao monitorado — status consulta: {status}")
 
         tratar_estado_captcha_processo(
             processo_id=processo_id,
@@ -513,20 +487,19 @@ async def consultar_com_robo(
             mensagem=mensagem,
         )
 
-        print(f"Status final: {status}")
+        log.debug(f"Processo {processo_id}: status final = {status}")
 
         return resultado
 
     except Exception as erro:
         mensagem = str(erro)
+        log.error(f"Processo {processo_id}: excecao na consulta — {mensagem}")
 
         registrar_historico_consulta(
             processo_id=processo_id,
             status=STATUS_ERRO_CONSULTA,
             mensagem=mensagem,
         )
-
-        print(f"Erro ao consultar processo: {mensagem}")
 
         return {
             "status": STATUS_ERRO_CONSULTA,
@@ -617,25 +590,21 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
     }
 
 async def scheduler_monitoramento():
-    print("\n🚀 MODO AUTOMÁTICO INICIADO")
+    log.info("Modo automatico iniciado — executa a cada hora cheia")
 
     while True:
         agora = datetime.now()
-
-        print("\n========================================")
-        print(f"⏱️ Execução iniciada em: {agora.strftime('%d/%m/%Y %H:%M:%S')}")
-        print("========================================")
+        log.info(f"Execucao iniciada em: {agora.strftime('%Y-%m-%d %H:%M:%S')}")
 
         try:
             await monitorar_processos_ativos()
         except Exception as e:
-            print(f"❌ Erro na execução automática: {e}")
+            log.error(f"Erro na execucao automatica: {e}")
 
-        # calcula tempo até próxima hora cheia
         agora = datetime.now()
         segundos_passados = agora.minute * 60 + agora.second
         segundos_restantes = 3600 - segundos_passados
 
-        print(f"\n⏳ Próxima execução em {segundos_restantes} segundos...")
+        log.info(f"Proxima execucao em {segundos_restantes}s ({segundos_restantes // 60}min)")
 
         await asyncio.sleep(segundos_restantes)

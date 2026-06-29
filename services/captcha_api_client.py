@@ -3,8 +3,11 @@ import asyncio
 import httpx
 
 from dotenv import load_dotenv
+from utils.logger import get_logger
 
 load_dotenv()
+
+log = get_logger("2captcha")
 
 CAPTCHA_API_KEY = os.getenv("CAPTCHA_API_KEY")
 CAPTCHA_API_ENVIAR_URL = os.getenv("CAPTCHA_API_ENVIAR_URL")
@@ -15,23 +18,15 @@ TOTAL_TENTATIVAS_RESULTADO = 24
 
 
 def api_configurada():
-    return all([
-        CAPTCHA_API_KEY,
-        CAPTCHA_API_ENVIAR_URL,
-        CAPTCHA_API_RESULTADO_URL
-    ])
+    return all([CAPTCHA_API_KEY, CAPTCHA_API_ENVIAR_URL, CAPTCHA_API_RESULTADO_URL])
 
 
-async def enviar_captcha_para_api(
-    processo=None,
-    caminho_imagem=None,
-    sitekey=None,
-    url=None
-):
+async def enviar_captcha_para_api(processo=None, caminho_imagem=None, sitekey=None, url=None):
     if not api_configurada():
+        log.warning("API de captcha nao configurada — verifique as variaveis de ambiente")
         return {
             "status": "API_NAO_CONFIGURADA",
-            "mensagem": "API não configurada",
+            "mensagem": "API nao configurada",
             "protocolo_api": None,
         }
 
@@ -49,25 +44,18 @@ async def enviar_captcha_para_api(
         resposta = await client.post(CAPTCHA_API_ENVIAR_URL, data=dados)
 
     texto = resposta.text.strip()
-
-    print("Resposta envio API:", texto)
+    log.debug(f"Resposta envio: {texto[:80]}")
 
     if texto.startswith("OK|"):
         protocolo = texto.split("|")[1]
+        log.info(f"Captcha enviado — protocolo: {protocolo}")
+        return {"status": "ENVIADO_API", "protocolo_api": protocolo}
 
-        return {
-            "status": "ENVIADO_API",
-            "protocolo_api": protocolo,
-        }
-
-    return {
-        "status": "ERRO_API_CAPTCHA",
-        "mensagem": texto,
-    }
+    log.error(f"Erro ao enviar captcha: {texto}")
+    return {"status": "ERRO_API_CAPTCHA", "mensagem": texto}
 
 
 async def consultar_resultado_captcha_api(protocolo_api):
-
     if not api_configurada():
         return {"status": "API_NAO_CONFIGURADA"}
 
@@ -81,26 +69,22 @@ async def consultar_resultado_captcha_api(protocolo_api):
                     "action": "get",
                     "id": protocolo_api,
                     "json": "0",
-                }
+                },
             )
 
             texto = resposta.text.strip()
 
-            print("Resposta consulta API:", texto)
-
             if texto == "CAPCHA_NOT_READY":
+                log.debug(f"Captcha ainda nao resolvido — tentativa {tentativa + 1}/{TOTAL_TENTATIVAS_RESULTADO}")
                 await asyncio.sleep(TEMPO_ESPERA_ENTRE_CONSULTAS)
                 continue
 
             if texto.startswith("OK|"):
-                return {
-                    "status": "RESOLVIDO",
-                    "resposta": texto.split("|")[1],
-                }
+                log.info("Captcha resolvido pela API")
+                return {"status": "RESOLVIDO", "resposta": texto.split("|")[1]}
 
-            return {
-                "status": "ERRO_API_CAPTCHA",
-                "mensagem": texto,
-            }
+            log.error(f"Erro na consulta do captcha: {texto}")
+            return {"status": "ERRO_API_CAPTCHA", "mensagem": texto}
 
+    log.warning(f"Timeout: captcha nao foi resolvido em {TOTAL_TENTATIVAS_RESULTADO} tentativas")
     return {"status": "PENDENTE"}

@@ -1,12 +1,16 @@
 from playwright.async_api import async_playwright
 import re
 
+from robots.base.robot_base import RobotBase
+from utils.logger import get_logger
 
-class RobotEsicSJP:
+log = get_logger("esic")
+
+
+class RobotEsicSJP(RobotBase):
 
     async def consultar_processo(self, processo):
-
-        print("\n=== ROBÔ ESIC SJP ===")
+        log.info(f"Iniciando consulta — processo: {processo.get('numero_processo')}")
 
         url = "https://esic.sjp.pr.gov.br/servicos/esic/controller/consulta/con_solicitacao.php"
 
@@ -17,74 +21,42 @@ class RobotEsicSJP:
 
             await page.goto(url)
 
-            # =====================================================
-            # ✅ 1. PREPARAR DADOS
-            # =====================================================
             numero = processo.get("numero_processo") or ""
-
             numero_limpo = re.sub(r"[^\d]", "", str(numero))
 
-            print(f"Número: {numero_limpo}")
+            log.info(f"Numero: {numero_limpo}")
 
-            # =====================================================
-            # ✅ 2. ESPERAR INPUT
-            # =====================================================
             await page.wait_for_selector("#solic_protocolo")
 
-            # =====================================================
-            # ✅ 3. PREENCHER CAMPO
-            # =====================================================
             input_processo = page.locator("#solic_protocolo")
-
             await input_processo.click()
             await input_processo.fill(numero_limpo)
 
-            print("✅ Campo preenchido")
+            log.info("Campo preenchido")
 
-            # =====================================================
-            # ✅ 4. CLICAR BOTÃO BUSCAR
-            # =====================================================
             await page.click("button.faleconosco-btn")
+            log.info("Consulta enviada")
 
-            print("✅ Consulta realizada")
-
-            # =====================================================
-            # ✅ 5. AGUARDAR RESULTADO
-            # =====================================================
             await page.wait_for_timeout(5000)
 
-            # =====================================================
-            # ✅ 6. EXTRAÇÃO SIMPLES
-            # =====================================================
             texto = await page.inner_text("body")
+            linhas = [l.strip() for l in texto.split("\n") if l.strip()]
 
-            linhas = [
-                linha.strip()
-                for linha in texto.split("\n")
-                if linha.strip()
-            ]
+            log.info(f"Linhas capturadas: {len(linhas)}")
 
-            print(f"🔎 Linhas capturadas: {len(linhas)}")
-
-            # =====================================================
-            # ✅ 7. STATUS
-            # =====================================================
             texto_total = " ".join(linhas).lower()
 
-            if "concluído" in texto_total:
+            if "concluido" in texto_total or "concluído" in texto_total:
+                status = "Finalizado"
+            elif "finalizado" in texto_total:
                 status = "Finalizado"
             elif "em andamento" in texto_total:
                 status = "Em andamento"
-            elif "finalizado" in texto_total:
-                status = "Finalizado"
             else:
-                status = "Em análise"
+                status = "Em analise"
 
-            print(f"📊 Status identificado: {status}")
+            log.info(f"Status: {status}")
 
-            # =====================================================
-            # ✅ 8. FINALIZAR
-            # =====================================================
             await browser.close()
 
             return {
@@ -94,9 +66,6 @@ class RobotEsicSJP:
             }
 
 
-# =====================================================
-# ✅ ENTRYPOINT
-# =====================================================
 async def consultar_processo_esic(processo):
     robo = RobotEsicSJP()
     return await robo.consultar_processo(processo)

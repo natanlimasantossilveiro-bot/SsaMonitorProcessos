@@ -1,7 +1,13 @@
 import os
 import asyncio
 
+from utils.logger import configurar_logger, get_logger
 from services.importador_planilha_service import importar_planilha_base
+
+# Inicializa o logger uma vez ao subir o sistema.
+# gravar_arquivo=True grava também em logs/ssa_monitor.log (rotativo 5 MB, 7 cópias)
+configurar_logger(gravar_arquivo=True)
+log = get_logger("main")
 
 from services.monitoramento_service import (
     validar_orgaos_importados,

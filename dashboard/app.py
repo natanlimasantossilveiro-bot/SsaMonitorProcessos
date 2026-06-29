@@ -21,7 +21,11 @@ from dashboard.dashboard_repository import (
     buscar_movimentacoes_hoje_por_orgao,
     buscar_detalhe_movimentacoes_hoje,
     buscar_movimentacoes_do_dia_agrupadas,
+    buscar_ultimas_movimentacoes_todos_processos,
     buscar_historico_7_dias,
+    buscar_processo_por_id_dashboard,
+    buscar_movimentacoes_do_processo,
+    buscar_historico_consultas_do_processo,
 )
 
 from dashboard.dashboard_html import gerar_linhas_tabela
@@ -525,7 +529,8 @@ def gerar_html_movimentacoes_hoje(data_str=None):
     processos     = buscar_detalhe_movimentacoes_hoje(data_param)
     mov_por_orgao = buscar_movimentacoes_hoje_por_orgao(data_param)
     total_dia     = buscar_total_movimentacoes_recentes(data_param)
-    movs_agrupadas = buscar_movimentacoes_do_dia_agrupadas(data_param)
+    movs_agrupadas       = buscar_movimentacoes_do_dia_agrupadas(data_param)
+    movs_historico       = buscar_ultimas_movimentacoes_todos_processos()
 
     # Cards de prefeitura — clicáveis para filtrar a tabela
     cards_orgaos = ""
@@ -560,41 +565,49 @@ def gerar_html_movimentacoes_hoje(data_str=None):
         dt_mov = escape(str(p.get("data_ultimo_movimento") or "—"))
         ult_c  = escape(str(p.get("ultima_consulta") or "—"))
 
+        # Movimentações deste dia (pode ser vazio)
+        movs_hoje_proc = movs_agrupadas.get(pid, [])
+        # Histórico completo (últimas N movimentações do banco)
+        movs_hist_proc = movs_historico.get(pid, [])
+
         if total > 0:
             indicador = f'<span class="badge verde">✔ {total} nova{"s" if total > 1 else ""}</span>'
-            cursor_style = "cursor:pointer;"
-            seta = f'<span id="seta-{idx}" style="float:right;color:#9ca3af;font-size:12px;">▶ ver movimentações</span>'
-            # Gera conteúdo expansível com as movimentações reais do dia
-            movs_do_processo = movs_agrupadas.get(pid, [])
-            conteudo_expandido = _html_movimentacoes_expandidas(movs_do_processo)
-            onclick = f'onclick="toggleMovs({idx})"'
+            cor_linha  = "background:#fff8f0;"
+            cor_borda  = "#f97316"
+            titulo_det = f"Movimentacoes detectadas neste dia — processo {num}"
+            conteudo_expandido = _html_movimentacoes_expandidas(movs_hoje_proc)
+        elif movs_hist_proc:
+            indicador = '<span class="badge cinza">— sem mov. hoje</span>'
+            cor_linha  = ""
+            cor_borda  = "#d1d5db"
+            titulo_det = f"Ultimo historico registrado — processo {num}"
+            conteudo_expandido = _html_movimentacoes_expandidas(movs_hist_proc)
         else:
             indicador = '<span class="badge cinza">— sem mov.</span>'
-            cursor_style = ""
-            seta = ""
-            conteudo_expandido = ""
-            onclick = ""
+            cor_linha  = ""
+            cor_borda  = "#d1d5db"
+            titulo_det = f"Processo {num}"
+            conteudo_expandido = '<p style="color:#6b7280;margin:0">Nenhuma movimentacao registrada no historico.</p>'
+
+        link_detalhe = f"/processo/{pid}"
 
         linhas += f"""
         <tr data-prefeitura="{escape(orgao_raw)}" data-tem-mov="{1 if total > 0 else 0}"
-            style="{cursor_style}{'background:#fff8f0;' if total > 0 else ''}"
-            {onclick}>
-            <td><strong>{num}</strong></td>
+            style="{cor_linha}"
+            onclick="window.location='{link_detalhe}'"
+            title="Ver detalhes e movimentacoes"
+            class="linha-processo">
+            <td>
+                <a href="{link_detalhe}" style="color:inherit;text-decoration:none;font-weight:700;">
+                    {num}
+                </a>
+            </td>
             <td style="max-width:160px">{emp}</td>
             <td>{orgao}</td>
             <td>{status}</td>
             <td>{indicador}</td>
             <td>{dt_mov}</td>
-            <td style="color:#9ca3af;font-size:12px">{seta}{ult_c}</td>
-        </tr>"""
-
-        if total > 0:
-            linhas += f"""
-        <tr id="detalhe-{idx}" style="display:none;background:#fafafa;">
-            <td colspan="7" style="padding:12px 20px;border-top:2px solid #f97316;">
-                <strong style="color:#f97316;">Movimentações detectadas neste dia — processo {num}</strong>
-                {conteudo_expandido}
-            </td>
+            <td style="color:#9ca3af;font-size:12px">{ult_c} <span style="float:right">›</span></td>
         </tr>"""
 
         idx += 1
@@ -610,28 +623,12 @@ def gerar_html_movimentacoes_hoje(data_str=None):
 
     js = """
     <script>
-    function toggleMovs(idx) {
-        const tr = document.getElementById('detalhe-' + idx);
-        if (!tr) return;
-        const seta = document.getElementById('seta-' + idx);
-        if (tr.style.display === 'none') {
-            tr.style.display = '';
-            if (seta) seta.innerHTML = '▼ ocultar movimentações';
-        } else {
-            tr.style.display = 'none';
-            if (seta) seta.innerHTML = '▶ ver movimentações';
-        }
-    }
-
     let filtroAtivo = null;
     function filtrarPrefeitura(nome) {
         const rows = document.querySelectorAll('tr[data-prefeitura]');
-        const detalhe = document.querySelectorAll('tr[id^="detalhe-"]');
 
         if (filtroAtivo === nome) {
-            // Desativa filtro (segundo clique no mesmo card)
             rows.forEach(r => r.style.display = '');
-            detalhe.forEach(r => r.style.display = 'none');
             filtroAtivo = null;
             document.getElementById('aviso-filtro').style.display = 'none';
             return;
@@ -641,7 +638,6 @@ def gerar_html_movimentacoes_hoje(data_str=None):
         rows.forEach(r => {
             r.style.display = (r.dataset.prefeitura === nome) ? '' : 'none';
         });
-        detalhe.forEach(r => r.style.display = 'none');
 
         const av = document.getElementById('aviso-filtro');
         av.style.display = '';
@@ -658,7 +654,8 @@ def gerar_html_movimentacoes_hoje(data_str=None):
     <meta charset="UTF-8">
     <title>{escape(titulo)} · SSA Monitor</title>
     <style>{CSS_BASE}
-    tr[data-prefeitura][data-tem-mov="1"]:hover td {{ background:#fff3e0; }}
+    tr.linha-processo {{ cursor: pointer; }}
+    tr.linha-processo:hover td {{ background:#f0f4ff !important; }}
     </style>
 </head>
 <body>
@@ -678,8 +675,9 @@ def gerar_html_movimentacoes_hoje(data_str=None):
     <section>
         <h2>Situação de todos os processos</h2>
         <div style="font-size:13px;color:#6b7280;margin-bottom:8px;">
-            <span class="badge verde">✔ N novas</span> = movimentações detectadas neste dia — <strong>clique na linha para ver o detalhe</strong> &nbsp;|&nbsp;
-            <span class="badge cinza">— sem mov.</span> = sem novidade
+            <span class="badge verde">✔ N novas</span> = movimentacoes detectadas neste dia &nbsp;|&nbsp;
+            <span class="badge cinza">— sem mov. hoje</span> = sem novidade hoje, mas tem historico &nbsp;|&nbsp;
+            <strong>Clique em qualquer linha</strong> para ver as movimentacoes
         </div>
         <div id="aviso-filtro" style="display:none;background:#dbeafe;color:#1e40af;
              padding:8px 14px;border-radius:8px;margin-bottom:10px;font-size:13px;"></div>
@@ -706,6 +704,145 @@ def gerar_html_movimentacoes_hoje(data_str=None):
 
 
 # ─────────────────────────────────────────────
+# PÁGINA: /processo/<id>  — detalhe completo
+# ─────────────────────────────────────────────
+def gerar_html_detalhe_processo(processo_id: int):
+    processo  = buscar_processo_por_id_dashboard(processo_id)
+    if not processo:
+        return None
+
+    movimentacoes = buscar_movimentacoes_do_processo(processo_id)
+    historico     = buscar_historico_consultas_do_processo(processo_id)
+
+    num    = escape(str(processo.get("numero_processo") or ""))
+    emp    = escape(str(processo.get("empresa") or "—"))
+    orgao  = escape(str(processo.get("orgao") or ""))
+    mun    = escape(str(processo.get("municipio") or orgao))
+    status = _badge_status(str(processo.get("status_atual") or ""))
+    robo   = escape(str(processo.get("robo") or "—"))
+    dt_mov = escape(str(processo.get("data_ultimo_movimento") or "—"))
+    ult_c  = escape(str(processo.get("ultima_consulta") or "—"))
+    url_o  = escape(str(processo.get("url_orgao") or ""))
+
+    # Movimentações
+    linhas_mov = ""
+    for m in movimentacoes:
+        dt   = escape(str(m.get("data_movimento") or "—"))
+        dc   = escape(str(m.get("data_captura") or ""))
+        hr   = escape(str(m.get("hora_captura") or "")[:5])
+        desc = escape(str(m.get("descricao") or "").strip())
+        if not desc or len(desc) < 5:
+            continue
+        linhas_mov += f"""
+        <tr>
+            <td style="white-space:nowrap;color:#6b7280;font-size:13px;">{dt}</td>
+            <td style="white-space:nowrap;color:#9ca3af;font-size:12px;">{dc} {hr}</td>
+            <td style="white-space:normal;font-size:14px;">{desc}</td>
+        </tr>"""
+    if not linhas_mov:
+        linhas_mov = '<tr><td colspan="3" class="vazio">Nenhuma movimentação registrada.</td></tr>'
+
+    # Histórico de consultas
+    linhas_hist = ""
+    for h in historico:
+        sc  = str(h.get("status_consulta") or "")
+        dc  = escape(str(h.get("data_consulta") or ""))
+        msg = escape(str(h.get("mensagem") or "")[:120])
+        if sc == "OK":
+            badge = f'<span class="badge verde">{escape(sc)}</span>'
+        elif "NAO_ENCONTRADO" in sc or "ERRO" in sc:
+            badge = f'<span class="badge laranja">{escape(sc)}</span>'
+        else:
+            badge = f'<span class="badge cinza">{escape(sc)}</span>'
+        linhas_hist += f"""
+        <tr>
+            <td>{badge}</td>
+            <td style="color:#6b7280;font-size:13px;">{dc}</td>
+            <td style="white-space:normal;font-size:13px;color:#374151;">{msg}</td>
+        </tr>"""
+    if not linhas_hist:
+        linhas_hist = '<tr><td colspan="3" class="vazio">Nenhuma consulta registrada.</td></tr>'
+
+    link_portal = (
+        f'<a href="{url_o}" target="_blank" style="color:#2563eb;font-size:13px;">'
+        f'Abrir no portal da prefeitura ›</a>'
+        if url_o else ""
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Processo {num} · SSA Monitor</title>
+    <style>{CSS_BASE}</style>
+</head>
+<body>
+    <h1>Processo {num}</h1>
+    <div class="subtitulo">{emp} · {orgao}</div>
+    {_nav("/movimentacoes-hoje")}
+    <a href="javascript:history.back()" class="btn secundario" style="margin-bottom:20px;display:inline-block;">
+        &larr; Voltar
+    </a>
+
+    <div class="cards" style="grid-template-columns:repeat(3,minmax(160px,1fr));margin-bottom:25px;">
+        <div class="card">
+            <h2 style="font-size:20px;">{num}</h2>
+            <p>Numero do processo</p>
+        </div>
+        <div class="card">
+            <h2 style="font-size:20px;">{mun}</h2>
+            <p>Prefeitura / Municipio</p>
+        </div>
+        <div class="card sucesso">
+            <h2 style="font-size:20px;">{status}</h2>
+            <p>Status atual</p>
+        </div>
+    </div>
+
+    <section style="margin-bottom:20px;">
+        <table style="width:auto;font-size:14px;">
+            <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Empresa</td>     <td><strong>{emp}</strong></td></tr>
+            <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Robo</td>        <td>{robo}</td></tr>
+            <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Ultimo mov.</td> <td>{dt_mov}</td></tr>
+            <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Ultima consulta</td><td>{ult_c}</td></tr>
+            {"<tr><td style='color:#6b7280;padding:4px 12px 4px 0;'>Portal</td><td>" + link_portal + "</td></tr>" if link_portal else ""}
+        </table>
+    </section>
+
+    <section>
+        <h2>Historico de movimentacoes <span style="font-size:14px;color:#6b7280;font-weight:normal;">({len(movimentacoes)} registros)</span></h2>
+        <table>
+            <thead>
+                <tr>
+                    <th style="white-space:nowrap;">Data mov.</th>
+                    <th style="white-space:nowrap;">Capturado em</th>
+                    <th>Descricao</th>
+                </tr>
+            </thead>
+            <tbody>{linhas_mov}</tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Historico de consultas do robo <span style="font-size:14px;color:#6b7280;font-weight:normal;">(ultimas {len(historico)})</span></h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Resultado</th>
+                    <th>Data/hora</th>
+                    <th>Mensagem</th>
+                </tr>
+            </thead>
+            <tbody>{linhas_hist}</tbody>
+        </table>
+    </section>
+
+    <div class="footer">SSA Monitor Processos · Detalhe do Processo</div>
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────
 # HTTP Handler
 # ─────────────────────────────────────────────
 class DashboardHandler(BaseHTTPRequestHandler):
@@ -725,11 +862,26 @@ class DashboardHandler(BaseHTTPRequestHandler):
             elif rota == "/movimentacoes-hoje":
                 data_param = qs.get("data", [None])[0]
                 html = gerar_html_movimentacoes_hoje(data_param)
+            elif rota.startswith("/processo/"):
+                # /processo/<id>
+                partes = rota.rstrip("/").split("/")
+                pid_str = partes[-1] if partes else ""
+                if not pid_str.isdigit():
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+                html = gerar_html_detalhe_processo(int(pid_str))
+                if html is None:
+                    self.send_response(404)
+                    self.send_header("Content-type", "text/html; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write("<h2>Processo nao encontrado.</h2>".encode("utf-8"))
+                    return
             else:
                 self.send_response(404)
                 self.send_header("Content-type", "text/html; charset=utf-8")
                 self.end_headers()
-                self.wfile.write(b"<h2>P\xc3\xa1gina n\xc3\xa3o encontrada.</h2>")
+                self.wfile.write("<h2>Pagina nao encontrada.</h2>".encode("utf-8"))
                 return
 
             self.send_response(200)

@@ -237,14 +237,17 @@ def atualizar_dados_processo(
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
+    # COALESCE: só atualiza status/data/movimentação se o novo valor não for NULL.
+    # Evita que consultas com erro (PROCESSO_NAO_ENCONTRADO etc.) apaguem
+    # um status válido que já estava gravado de uma consulta anterior.
     cursor.execute("""
         UPDATE processos SET
-            status_processo = %s,
-            status_atual = %s,
-            data_ultimo_movimento = %s,
-            ultima_movimentacao = %s,
-            monitorado = %s,
-            ultima_consulta = NOW()
+            status_processo      = COALESCE(%s, status_processo),
+            status_atual         = COALESCE(%s, status_atual),
+            data_ultimo_movimento = COALESCE(%s, data_ultimo_movimento),
+            ultima_movimentacao  = COALESCE(%s, ultima_movimentacao),
+            monitorado           = %s,
+            ultima_consulta      = NOW()
         WHERE id = %s
     """, (
         status_processo,
