@@ -541,19 +541,13 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
 
     nome_robo = processo.get("robo") or processo.get("chave_robo")
 
-    # 🚫 DESATIVA ATENDENET
+    # atende_net = mesma plataforma IPM/AtendNet usada por Pinhais e Araucária
     if nome_robo == "atende_net":
-        registrar_historico_consulta(
-            processo_id=processo_id,
-            status="ROBO_DESATIVADO",
-            mensagem="AtendeNet temporariamente desativado",
+        return await consultar_com_robo(
+            processo=processo,
+            nome_robo="atende_net",
+            funcao_consulta=consultar_processo_pinhais,
         )
-
-        return {
-            "status": "ROBO_DESATIVADO",
-            "mensagem": "AtendeNet temporariamente desativado",
-            "ROBO_DESATIVADO": 0,
-        }
 
     if nome_robo == "curitiba":
         return await consultar_com_robo(
@@ -604,8 +598,6 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
         )
     
     if nome_robo == "pinhais":
-        from robots.atendenet_v2.robot import consultar_processo_pinhais
-
         return await consultar_com_robo(
             processo=processo,
             nome_robo="pinhais",

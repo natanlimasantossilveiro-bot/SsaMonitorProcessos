@@ -94,9 +94,14 @@ class RobotAtendeNetV2:
 
     async def consultar_processo(self, processo):
 
-        print("\n=== ROBÔ PINHAIS (ATENDENET V2) ===")
+        # Usa a URL cadastrada no processo; fallback para Pinhais se não houver
+        url = (
+            processo.get("acesso")
+            or "https://pinhais.atende.net/autoatendimento/servicos/consulta-de-processo-digital/detalhar/1"
+        )
 
-        url = "https://pinhais.atende.net/autoatendimento/servicos/consulta-de-processo-digital/detalhar/1"
+        municipio = processo.get("municipio") or processo.get("nome_orgao") or "AtendNet"
+        print(f"\n=== ROBÔ ATENDENET V2 — {municipio.upper()} ===")
 
         async with async_playwright() as p:
 

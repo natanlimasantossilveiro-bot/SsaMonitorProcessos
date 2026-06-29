@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import date, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from html import escape
@@ -19,7 +20,8 @@ from dashboard.dashboard_repository import (
     buscar_total_movimentacoes_recentes,
     buscar_movimentacoes_hoje_por_orgao,
     buscar_detalhe_movimentacoes_hoje,
-    buscar_movimentacoes_de_processo_hoje,
+    buscar_movimentacoes_do_dia_agrupadas,
+    buscar_historico_7_dias,
 )
 
 from dashboard.dashboard_html import gerar_linhas_tabela
@@ -126,6 +128,67 @@ CSS_BASE = """
     .barra { background: #f97316; height: 8px; border-radius: 4px; }
     .vazio { text-align: center; color: #6b7280; padding: 20px; }
     .footer { text-align: center; color: #777; margin-top: 30px; font-size: 13px; }
+    /* Calendário 7 dias */
+    .cal-semana {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .cal-dia {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: white;
+        border-radius: 10px;
+        padding: 12px 16px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        min-width: 80px;
+        text-decoration: none;
+        color: inherit;
+        border: 2px solid transparent;
+        transition: border-color .15s, box-shadow .15s;
+    }
+    .cal-dia:hover { border-color: #f97316; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+    .cal-dia.hoje { border-color: #2563eb; }
+    .cal-dia.sem-dados { opacity: .55; }
+    .cal-dia .dia-semana { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; }
+    .cal-dia .dia-num   { font-size: 20px; font-weight: 700; color: #111827; line-height: 1.2; }
+    .cal-dia .dia-total { font-size: 22px; font-weight: 800; color: #f97316; margin-top: 4px; }
+    .cal-dia .dia-label { font-size: 11px; color: #9ca3af; }
+    .cal-dia .bolinha   { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: #e5e7eb; }
+    .cal-dia.com-dados .bolinha { background: #f97316; }
+    /* Navegação de datas */
+    .nav-data {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .nav-data a, .nav-data button {
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: white;
+        cursor: pointer;
+        font-size: 14px;
+        text-decoration: none;
+        color: #374151;
+        transition: background .1s;
+    }
+    .nav-data a:hover, .nav-data button:hover { background: #f3f4f6; }
+    .nav-data .data-atual {
+        font-size: 18px;
+        font-weight: 700;
+        color: #111827;
+    }
+    .nav-data input[type=date] {
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        font-size: 14px;
+        cursor: pointer;
+    }
     @media (max-width: 1000px) {
         .cards { grid-template-columns: repeat(2, 1fr); }
         .grid-duplo { grid-template-columns: 1fr; }
@@ -167,17 +230,64 @@ def _nav(pagina_atual="/"):
 # ─────────────────────────────────────────────
 # PÁGINA PRINCIPAL — Dashboard
 # ─────────────────────────────────────────────
+def _gerar_calendario_7_dias(historico):
+    """Gera os 7 cards do mini-calendário com links para cada dia."""
+    # Monta dict data → dados para lookup rápido
+    por_dia = {}
+    for row in historico:
+        d = row.get("dia")
+        if d:
+            por_dia[str(d)] = row
+
+    hoje = date.today()
+    dias_semana_pt = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+    html = '<div class="cal-semana">'
+
+    for i in range(6, -1, -1):
+        dia = hoje - timedelta(days=i)
+        chave = str(dia)
+        dados = por_dia.get(chave, {})
+        total = dados.get("total_processos", 0)
+        nome_dia = dias_semana_pt[dia.weekday()]
+        is_hoje = dia == hoje
+        tem_dados = total > 0
+
+        cls = "cal-dia"
+        if is_hoje:
+            cls += " hoje"
+        if tem_dados:
+            cls += " com-dados"
+        else:
+            cls += " sem-dados"
+
+        link = f"/movimentacoes-hoje?data={chave}"
+        label_dia = "hoje" if is_hoje else dia.strftime("%d/%m")
+
+        html += f"""
+        <a href="{link}" class="{cls}" title="Ver {label_dia}">
+            <span class="dia-semana">{nome_dia}</span>
+            <span class="dia-num">{dia.day:02d}</span>
+            <span class="dia-total">{total if tem_dados else '—'}</span>
+            <span class="dia-label">{'processo' + ('s' if total != 1 else '') if tem_dados else 'sem mov.'}</span>
+            <span class="bolinha"></span>
+        </a>"""
+
+    html += "</div>"
+    return html
+
+
 def gerar_html_dashboard():
-    total_processos      = buscar_total_processos()
+    total_processos       = buscar_total_processos()
     processos_monitorados = buscar_processos_monitorados()
-    total_orgaos         = buscar_total_orgaos()
-    novas_movimentacoes  = buscar_total_movimentacoes_recentes()
-    processos_por_status = buscar_processos_por_status()
-    ranking_orgaos       = buscar_ranking_orgaos()
+    total_orgaos          = buscar_total_orgaos()
+    novas_movimentacoes   = buscar_total_movimentacoes_recentes()
+    processos_por_status  = buscar_processos_por_status()
+    ranking_orgaos        = buscar_ranking_orgaos()
     ultimas_movimentacoes = buscar_ultimas_movimentacoes()
-    orgaos_sem_robo      = buscar_orgaos_sem_robo()
-    ultimas_consultas    = buscar_ultimas_consultas()
-    mov_por_orgao        = buscar_movimentacoes_hoje_por_orgao()
+    orgaos_sem_robo       = buscar_orgaos_sem_robo()
+    ultimas_consultas     = buscar_ultimas_consultas()
+    mov_por_orgao         = buscar_movimentacoes_hoje_por_orgao()
+    historico_7           = buscar_historico_7_dias()
 
     # Linhas da tabela de status com badges
     html_status = ""
@@ -232,6 +342,8 @@ def gerar_html_dashboard():
     else:
         mini_lista = '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">Nenhuma hoje</div>'
 
+    html_calendario = _gerar_calendario_7_dias(historico_7)
+
     return f"""<!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -265,6 +377,14 @@ def gerar_html_dashboard():
             <p>Total de órgãos/links</p>
         </div>
     </div>
+
+    <section>
+        <h2>Histórico dos últimos 7 dias</h2>
+        <p style="font-size:13px;color:#6b7280;margin-top:0;margin-bottom:14px;">
+            Clique em qualquer dia para ver os detalhes dos processos com movimentação.
+        </p>
+        {html_calendario}
+    </section>
 
     <div class="grid-duplo">
         <section>
@@ -323,36 +443,118 @@ def gerar_html_dashboard():
 
 
 # ─────────────────────────────────────────────
-# PÁGINA: /movimentacoes-hoje
+# PÁGINA: /movimentacoes-hoje  (aceita ?data=YYYY-MM-DD)
 # ─────────────────────────────────────────────
-def gerar_html_movimentacoes_hoje():
-    processos = buscar_detalhe_movimentacoes_hoje()
-    mov_por_orgao = buscar_movimentacoes_hoje_por_orgao()
-    total_hoje = buscar_total_movimentacoes_recentes()
+def _nav_datas(data_selecionada: date) -> str:
+    """Gera a barra de navegação de datas (← ontem | data atual | amanhã →)."""
+    hoje       = date.today()
+    anterior   = data_selecionada - timedelta(days=1)
+    proximo    = data_selecionada + timedelta(days=1)
+    dias_semana_pt = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+    nome_dia = dias_semana_pt[data_selecionada.weekday()]
 
-    # Cards de resumo por prefeitura
+    label_data = (
+        f"Hoje — {data_selecionada.strftime('%d/%m/%Y')}"
+        if data_selecionada == hoje
+        else f"{nome_dia}, {data_selecionada.strftime('%d/%m/%Y')}"
+    )
+
+    proximo_html = (
+        f'<a href="/movimentacoes-hoje?data={proximo}">Amanhã &rarr;</a>'
+        if proximo <= hoje
+        else '<span style="color:#d1d5db;padding:8px 16px;border-radius:8px;border:1px solid #e5e7eb;">Amanhã →</span>'
+    )
+
+    return f"""
+    <div class="nav-data">
+        <a href="/movimentacoes-hoje?data={anterior}">&larr; Dia anterior</a>
+        <span class="data-atual">📅 {label_data}</span>
+        {proximo_html}
+        <form method="get" action="/movimentacoes-hoje" style="display:inline-flex;align-items:center;gap:8px;">
+            <input type="date" name="data" value="{data_selecionada}"
+                   max="{hoje}" onchange="this.form.submit()">
+        </form>
+        {'<a href="/movimentacoes-hoje">↩ Ir para hoje</a>' if data_selecionada != hoje else ''}
+    </div>"""
+
+
+def _html_movimentacoes_expandidas(movs):
+    """Gera o conteúdo HTML da linha expandida com as movimentações do dia."""
+    if not movs:
+        return '<p style="color:#6b7280;margin:0">Nenhuma movimentação registrada para este dia.</p>'
+    linhas = ""
+    for m in movs:
+        dt  = escape(str(m.get("data_movimento") or "—"))
+        hr  = escape(str(m.get("hora_captura") or "")[:5])
+        desc = escape(str(m.get("descricao") or "").strip()[:300])
+        # Só exibe linhas que parecem tramitações reais (têm data e texto)
+        if not desc or len(desc) < 5:
+            continue
+        linhas += f"""
+        <tr style="background:#f8fafc;">
+            <td style="white-space:nowrap;color:#6b7280;font-size:12px;padding:6px 10px;">{dt}</td>
+            <td style="color:#6b7280;font-size:12px;padding:6px 10px;">{hr}</td>
+            <td style="font-size:13px;white-space:normal;max-width:600px;padding:6px 10px;">{desc}</td>
+        </tr>"""
+    if not linhas:
+        return '<p style="color:#6b7280;margin:0">Detalhes não disponíveis para este dia.</p>'
+    return f"""
+    <table style="width:100%;border-collapse:collapse;margin-top:6px;">
+        <thead>
+            <tr>
+                <th style="font-size:11px;color:#9ca3af;text-align:left;padding:4px 10px;white-space:nowrap;">Data mov.</th>
+                <th style="font-size:11px;color:#9ca3af;text-align:left;padding:4px 10px;">Capturado às</th>
+                <th style="font-size:11px;color:#9ca3af;text-align:left;padding:4px 10px;">Descrição</th>
+            </tr>
+        </thead>
+        <tbody>{linhas}</tbody>
+    </table>"""
+
+
+def gerar_html_movimentacoes_hoje(data_str=None):
+    hoje = date.today()
+    try:
+        data_sel = date.fromisoformat(data_str) if data_str else hoje
+        if data_sel > hoje:
+            data_sel = hoje
+    except (ValueError, TypeError):
+        data_sel = hoje
+
+    data_param = str(data_sel) if data_sel != hoje else None
+
+    processos     = buscar_detalhe_movimentacoes_hoje(data_param)
+    mov_por_orgao = buscar_movimentacoes_hoje_por_orgao(data_param)
+    total_dia     = buscar_total_movimentacoes_recentes(data_param)
+    movs_agrupadas = buscar_movimentacoes_do_dia_agrupadas(data_param)
+
+    # Cards de prefeitura — clicáveis para filtrar a tabela
     cards_orgaos = ""
     for item in mov_por_orgao:
-        orgao = escape(str(item.get("orgao") or ""))
+        orgao_raw = str(item.get("orgao") or "")
+        orgao     = escape(orgao_raw)
         tp = item.get("total_processos", 0)
         tm = item.get("total_movimentacoes", 0)
         cards_orgaos += f"""
-        <div class="card alerta" style="min-width:160px;">
+        <div class="card alerta" style="min-width:160px;cursor:pointer;"
+             onclick="filtrarPrefeitura('{orgao_raw}')"
+             title="Filtrar por {orgao}">
             <h2>{tp}</h2>
             <p>{orgao}</p>
-            <div class="hint">{tm} movimentaç{'ão' if tm == 1 else 'ões'}</div>
+            <div class="hint">{tm} movimentaç{'ão' if tm == 1 else 'ões'} · clique para filtrar</div>
         </div>"""
 
     if not cards_orgaos:
-        cards_orgaos = '<p style="color:#6b7280">Nenhuma movimentação detectada hoje.</p>'
+        cards_orgaos = '<p style="color:#6b7280">Nenhuma movimentação detectada neste dia.</p>'
 
-    # Tabela principal com todos os processos
+    # Linhas da tabela — clicáveis para expandir movimentações
     linhas = ""
+    idx = 0
     for p in processos:
         pid    = p.get("processo_id", "")
         num    = escape(str(p.get("numero_processo") or ""))
         emp    = escape(str(p.get("empresa") or "—"))
-        orgao  = escape(str(p.get("orgao") or ""))
+        orgao_raw = str(p.get("orgao") or "")
+        orgao  = escape(orgao_raw)
         status = _badge_status(str(p.get("status_atual") or ""))
         total  = p.get("total_movimentacoes_hoje", 0)
         dt_mov = escape(str(p.get("data_ultimo_movimento") or "—"))
@@ -360,53 +562,127 @@ def gerar_html_movimentacoes_hoje():
 
         if total > 0:
             indicador = f'<span class="badge verde">✔ {total} nova{"s" if total > 1 else ""}</span>'
-            # Busca descrição da última capturada hoje
-            desc = escape(str(p.get("ultima_descricao_hoje") or "")[:80])
-            linha_extra = f'<div style="font-size:12px;color:#374151;margin-top:4px;white-space:normal;">{desc}</div>'
+            cursor_style = "cursor:pointer;"
+            seta = f'<span id="seta-{idx}" style="float:right;color:#9ca3af;font-size:12px;">▶ ver movimentações</span>'
+            # Gera conteúdo expansível com as movimentações reais do dia
+            movs_do_processo = movs_agrupadas.get(pid, [])
+            conteudo_expandido = _html_movimentacoes_expandidas(movs_do_processo)
+            onclick = f'onclick="toggleMovs({idx})"'
         else:
-            indicador   = '<span class="badge cinza">— sem mov.</span>'
-            linha_extra = ""
+            indicador = '<span class="badge cinza">— sem mov.</span>'
+            cursor_style = ""
+            seta = ""
+            conteudo_expandido = ""
+            onclick = ""
 
-        linhas += f"""<tr>
+        linhas += f"""
+        <tr data-prefeitura="{escape(orgao_raw)}" data-tem-mov="{1 if total > 0 else 0}"
+            style="{cursor_style}{'background:#fff8f0;' if total > 0 else ''}"
+            {onclick}>
             <td><strong>{num}</strong></td>
             <td style="max-width:160px">{emp}</td>
             <td>{orgao}</td>
             <td>{status}</td>
-            <td>{indicador}{linha_extra}</td>
+            <td>{indicador}</td>
             <td>{dt_mov}</td>
-            <td style="color:#9ca3af;font-size:12px">{ult_c}</td>
+            <td style="color:#9ca3af;font-size:12px">{seta}{ult_c}</td>
         </tr>"""
+
+        if total > 0:
+            linhas += f"""
+        <tr id="detalhe-{idx}" style="display:none;background:#fafafa;">
+            <td colspan="7" style="padding:12px 20px;border-top:2px solid #f97316;">
+                <strong style="color:#f97316;">Movimentações detectadas neste dia — processo {num}</strong>
+                {conteudo_expandido}
+            </td>
+        </tr>"""
+
+        idx += 1
 
     if not linhas:
         linhas = '<tr><td colspan="7" class="vazio">Nenhum processo encontrado.</td></tr>'
+
+    titulo = (
+        "Movimentações de Hoje"
+        if data_sel == hoje
+        else f"Movimentações de {data_sel.strftime('%d/%m/%Y')}"
+    )
+
+    js = """
+    <script>
+    function toggleMovs(idx) {
+        const tr = document.getElementById('detalhe-' + idx);
+        if (!tr) return;
+        const seta = document.getElementById('seta-' + idx);
+        if (tr.style.display === 'none') {
+            tr.style.display = '';
+            if (seta) seta.innerHTML = '▼ ocultar movimentações';
+        } else {
+            tr.style.display = 'none';
+            if (seta) seta.innerHTML = '▶ ver movimentações';
+        }
+    }
+
+    let filtroAtivo = null;
+    function filtrarPrefeitura(nome) {
+        const rows = document.querySelectorAll('tr[data-prefeitura]');
+        const detalhe = document.querySelectorAll('tr[id^="detalhe-"]');
+
+        if (filtroAtivo === nome) {
+            // Desativa filtro (segundo clique no mesmo card)
+            rows.forEach(r => r.style.display = '');
+            detalhe.forEach(r => r.style.display = 'none');
+            filtroAtivo = null;
+            document.getElementById('aviso-filtro').style.display = 'none';
+            return;
+        }
+
+        filtroAtivo = nome;
+        rows.forEach(r => {
+            r.style.display = (r.dataset.prefeitura === nome) ? '' : 'none';
+        });
+        detalhe.forEach(r => r.style.display = 'none');
+
+        const av = document.getElementById('aviso-filtro');
+        av.style.display = '';
+        av.innerHTML = '🔍 Filtrando por: <strong>' + nome + '</strong> &nbsp;'
+            + '<a href="#" onclick="filtrarPrefeitura(\'' + nome + '\');return false;"'
+            + ' style="color:#2563eb;">limpar filtro ✕</a>';
+    }
+    </script>
+    """
 
     return f"""<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="60">
-    <title>Movimentações Hoje · SSA Monitor</title>
-    <style>{CSS_BASE}</style>
+    <title>{escape(titulo)} · SSA Monitor</title>
+    <style>{CSS_BASE}
+    tr[data-prefeitura][data-tem-mov="1"]:hover td {{ background:#fff3e0; }}
+    </style>
 </head>
 <body>
-    <h1>Movimentações de Hoje</h1>
-    <div class="subtitulo">Todos os processos ativos · indica se houve nova movimentação detectada hoje</div>
+    <h1>{escape(titulo)}</h1>
+    <div class="subtitulo">Todos os processos ativos · movimentações detectadas pelo robô neste dia</div>
     {_nav("/movimentacoes-hoje")}
+    {_nav_datas(data_sel)}
 
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:25px;">
         <div class="card alerta" style="min-width:160px;">
-            <h2>{total_hoje}</h2>
-            <p>Processos com mov. hoje</p>
+            <h2>{total_dia}</h2>
+            <p>Processos com mov. neste dia</p>
         </div>
         {cards_orgaos}
     </div>
 
     <section>
         <h2>Situação de todos os processos</h2>
-        <div style="font-size:13px;color:#6b7280;margin-bottom:10px;">
-            <span class="badge verde">✔ N novas</span> = movimentações detectadas hoje &nbsp;|&nbsp;
-            <span class="badge cinza">— sem mov.</span> = sem novidade hoje
+        <div style="font-size:13px;color:#6b7280;margin-bottom:8px;">
+            <span class="badge verde">✔ N novas</span> = movimentações detectadas neste dia — <strong>clique na linha para ver o detalhe</strong> &nbsp;|&nbsp;
+            <span class="badge cinza">— sem mov.</span> = sem novidade
         </div>
+        <div id="aviso-filtro" style="display:none;background:#dbeafe;color:#1e40af;
+             padding:8px 14px;border-radius:8px;margin-bottom:10px;font-size:13px;"></div>
         <table>
             <thead>
                 <tr>
@@ -424,6 +700,7 @@ def gerar_html_movimentacoes_hoje():
     </section>
 
     <div class="footer">SSA Monitor Processos · Movimentações Hoje</div>
+    {js}
 </body>
 </html>"""
 
@@ -442,10 +719,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
         rota = parsed.path
 
         try:
+            qs = parse_qs(parsed.query)
             if rota == "/":
                 html = gerar_html_dashboard()
             elif rota == "/movimentacoes-hoje":
-                html = gerar_html_movimentacoes_hoje()
+                data_param = qs.get("data", [None])[0]
+                html = gerar_html_movimentacoes_hoje(data_param)
             else:
                 self.send_response(404)
                 self.send_header("Content-type", "text/html; charset=utf-8")
