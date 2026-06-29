@@ -37,171 +37,345 @@ PORTA = int(os.getenv("DASHBOARD_PORT", "8000"))
 # CSS compartilhado
 # ─────────────────────────────────────────────
 CSS_BASE = """
-    * { box-sizing: border-box; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+        --bg-page:     #f0f2f5;
+        --bg-card:     #ffffff;
+        --bg-section:  #ffffff;
+        --bg-header:   #0f172a;
+        --bg-th:       #f8fafc;
+        --bg-hover:    #f1f5f9;
+        --text-1:      #0f172a;
+        --text-2:      #64748b;
+        --text-3:      #94a3b8;
+        --border:      #e2e8f0;
+        --blue:        #2563eb;
+        --green:       #16a34a;
+        --orange:      #ea580c;
+        --gray:        #64748b;
+        --shadow-sm:   0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+        --shadow-md:   0 4px 16px rgba(0,0,0,.10), 0 2px 4px rgba(0,0,0,.06);
+        --shadow-lg:   0 8px 28px rgba(0,0,0,.14), 0 4px 8px rgba(0,0,0,.08);
+        --radius:      12px;
+        --radius-sm:   8px;
+    }
+
+    [data-theme="dark"] {
+        --bg-page:     #0d1117;
+        --bg-card:     #161b22;
+        --bg-section:  #161b22;
+        --bg-header:   #010409;
+        --bg-th:       #1c2128;
+        --bg-hover:    #1c2128;
+        --text-1:      #e6edf3;
+        --text-2:      #8b949e;
+        --text-3:      #6e7681;
+        --border:      #30363d;
+        --blue:        #388bfd;
+        --green:       #3fb950;
+        --orange:      #fb8f44;
+        --gray:        #8b949e;
+        --shadow-sm:   0 1px 3px rgba(0,0,0,.30), 0 1px 2px rgba(0,0,0,.20);
+        --shadow-md:   0 4px 16px rgba(0,0,0,.40), 0 2px 4px rgba(0,0,0,.30);
+        --shadow-lg:   0 8px 28px rgba(0,0,0,.55), 0 4px 8px rgba(0,0,0,.40);
+    }
+
+    html { scroll-behavior: smooth; }
     body {
-        font-family: Arial, sans-serif;
-        background: #f4f6f8;
-        margin: 0;
-        padding: 24px;
-        color: #111827;
-    }
-    h1 { margin-bottom: 5px; font-size: 32px; }
-    h2 { margin-top: 0; }
-    .subtitulo { color: #6b7280; margin-bottom: 25px; }
-    .btn {
-        display: inline-block;
-        padding: 10px 18px;
-        margin-bottom: 15px;
-        background: #2563eb;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        text-decoration: none;
+        font-family: 'Inter', Arial, sans-serif;
+        background: var(--bg-page);
+        color: var(--text-1);
+        min-height: 100vh;
         font-size: 14px;
+        line-height: 1.5;
+        transition: background .25s, color .25s;
     }
-    .btn:hover { background: #1d4ed8; }
-    .btn.secundario { background: #6b7280; }
-    .btn.secundario:hover { background: #4b5563; }
+
+    /* ── Topbar ── */
+    .topbar {
+        background: var(--bg-header);
+        height: 58px;
+        padding: 0 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .topbar-brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        text-decoration: none;
+    }
+    .topbar-icon {
+        width: 34px; height: 34px;
+        background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+        border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 17px; flex-shrink: 0;
+    }
+    .topbar-name {
+        font-size: 14px; font-weight: 700;
+        color: #ffffff; letter-spacing: -.2px;
+        line-height: 1.1;
+    }
+    .topbar-sub {
+        font-size: 10px; color: rgba(255,255,255,.4);
+        font-weight: 400; letter-spacing: .3px;
+    }
+    .topbar-right { display: flex; align-items: center; gap: 6px; }
+    .topbar-nav { display: flex; gap: 2px; margin-right: 10px; }
+    .topbar-nav a {
+        padding: 6px 13px;
+        border-radius: var(--radius-sm);
+        font-size: 13px; font-weight: 500;
+        color: rgba(255,255,255,.65);
+        text-decoration: none;
+        transition: background .15s, color .15s;
+        white-space: nowrap;
+    }
+    .topbar-nav a:hover { background: rgba(255,255,255,.08); color: #fff; }
+    .topbar-nav a.ativo { background: rgba(255,255,255,.11); color: #fff; }
+    .btn-theme {
+        width: 34px; height: 34px;
+        border-radius: var(--radius-sm);
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(255,255,255,.06);
+        color: rgba(255,255,255,.75);
+        cursor: pointer; font-size: 15px;
+        display: flex; align-items: center; justify-content: center;
+        transition: background .15s;
+        flex-shrink: 0;
+    }
+    .btn-theme:hover { background: rgba(255,255,255,.13); color: #fff; }
+
+    /* ── Layout ── */
+    .page-content { max-width: 1300px; margin: 0 auto; padding: 28px 24px; }
+    .page-header { margin-bottom: 22px; }
+    .page-header h1 {
+        font-size: 22px; font-weight: 700;
+        color: var(--text-1); letter-spacing: -.4px;
+    }
+    .subtitulo { color: var(--text-2); font-size: 13px; margin-top: 3px; }
+
+    /* ── Cards ── */
     .cards {
         display: grid;
         grid-template-columns: repeat(4, minmax(180px, 1fr));
-        gap: 18px;
-        margin-bottom: 25px;
+        gap: 16px;
+        margin-bottom: 22px;
     }
     .card {
-        background: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        border-left: 5px solid #2563eb;
+        background: var(--bg-card);
+        padding: 20px 22px;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--border);
+        border-top: 3px solid var(--blue);
         text-decoration: none;
         color: inherit;
         display: block;
-        transition: box-shadow .15s;
+        transition: box-shadow .15s, transform .15s;
     }
-    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
-    .card.alerta { border-left-color: #f97316; }
-    .card.alerta:hover { border-left-color: #ea580c; }
-    .card.sucesso { border-left-color: #16a34a; }
-    .card.neutro  { border-left-color: #6b7280; }
-    .card h2 { margin: 0; font-size: 34px; color: #0f172a; }
-    .card p  { margin: 6px 0 0; color: #6b7280; font-size: 14px; }
-    .card .hint { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+    .card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+    .card.alerta  { border-top-color: var(--orange); }
+    .card.sucesso { border-top-color: var(--green); }
+    .card.neutro  { border-top-color: var(--gray); }
+    .card h2 { font-size: 36px; font-weight: 800; color: var(--text-1); letter-spacing: -1.5px; line-height: 1; margin-bottom: 4px; }
+    .card p  { color: var(--text-2); font-size: 13px; margin-top: 2px; }
+    .card .hint { font-size: 11px; color: var(--text-3); margin-top: 6px; }
+
+    /* ── Grid ── */
     .grid-duplo {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 20px;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
     }
+
+    /* ── Section ── */
     section {
-        background: white;
-        padding: 20px;
-        border-radius: 12px;
-        margin-bottom: 25px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        background: var(--bg-section);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 22px 24px;
+        margin-bottom: 20px;
+        box-shadow: var(--shadow-sm);
         overflow-x: auto;
     }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    section h2 {
+        font-size: 15px; font-weight: 700;
+        color: var(--text-1); letter-spacing: -.3px;
+        margin-bottom: 14px;
+    }
+
+    /* ── Tabelas ── */
+    table { width: 100%; border-collapse: collapse; }
     th, td {
-        border-bottom: 1px solid #e5e7eb;
-        padding: 10px;
+        padding: 10px 12px;
         text-align: left;
-        font-size: 14px;
-        vertical-align: top;
-        max-width: 320px;
+        font-size: 13px;
+        vertical-align: middle;
+        max-width: 300px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        border-bottom: 1px solid var(--border);
     }
-    th { background: #f8fafc; color: #374151; }
-    tr:hover td { background: #f9fafb; }
+    th {
+        background: var(--bg-th);
+        color: var(--text-2);
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .7px;
+        border-bottom: 2px solid var(--border);
+    }
+    tr:hover td { background: var(--bg-hover); }
+    tbody tr:last-child td { border-bottom: none; }
+
+    /* ── Badges ── */
     .badge {
         display: inline-block;
-        padding: 3px 10px;
+        padding: 2px 9px;
         border-radius: 999px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
+        letter-spacing: .2px;
     }
-    .badge.verde   { background: #dcfce7; color: #166534; }
-    .badge.cinza   { background: #f3f4f6; color: #4b5563; }
-    .badge.azul    { background: #dbeafe; color: #1e40af; }
-    .badge.laranja { background: #ffedd5; color: #9a3412; }
-    .badge.roxo    { background: #ede9fe; color: #5b21b6; }
-    .barra-container { background: #e5e7eb; border-radius: 4px; height: 8px; width: 100%; }
-    .barra { background: #f97316; height: 8px; border-radius: 4px; }
-    .vazio { text-align: center; color: #6b7280; padding: 20px; }
-    .footer { text-align: center; color: #777; margin-top: 30px; font-size: 13px; }
-    /* Calendário 7 dias */
-    .cal-semana {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-    }
+    .badge.verde   { background: #dcfce7; color: #15803d; }
+    .badge.cinza   { background: #f1f5f9; color: #475569; }
+    .badge.azul    { background: #dbeafe; color: #1d4ed8; }
+    .badge.laranja { background: #ffedd5; color: #c2410c; }
+    .badge.roxo    { background: #ede9fe; color: #6d28d9; }
+    [data-theme="dark"] .badge.verde   { background: #0a2d1a; color: #4ade80; }
+    [data-theme="dark"] .badge.cinza   { background: #1c2128; color: #8b949e; }
+    [data-theme="dark"] .badge.azul    { background: #0c1f3d; color: #79b8ff; }
+    [data-theme="dark"] .badge.laranja { background: #2e1200; color: #fb8f44; }
+    [data-theme="dark"] .badge.roxo    { background: #1a0040; color: #c084fc; }
+
+    /* ── Barra ── */
+    .barra-container { background: var(--border); border-radius: 4px; height: 6px; width: 100%; }
+    .barra { background: var(--orange); height: 6px; border-radius: 4px; }
+
+    /* ── Calendário ── */
+    .cal-semana { display: flex; gap: 10px; flex-wrap: wrap; }
     .cal-dia {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        background: white;
+        display: flex; flex-direction: column; align-items: center;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
         border-radius: 10px;
         padding: 12px 16px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-        min-width: 80px;
+        box-shadow: var(--shadow-sm);
+        min-width: 82px;
         text-decoration: none;
         color: inherit;
-        border: 2px solid transparent;
-        transition: border-color .15s, box-shadow .15s;
+        transition: border-color .15s, box-shadow .15s, transform .15s;
     }
-    .cal-dia:hover { border-color: #f97316; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
-    .cal-dia.hoje { border-color: #2563eb; }
-    .cal-dia.sem-dados { opacity: .55; }
-    .cal-dia .dia-semana { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; }
-    .cal-dia .dia-num   { font-size: 20px; font-weight: 700; color: #111827; line-height: 1.2; }
-    .cal-dia .dia-total { font-size: 22px; font-weight: 800; color: #f97316; margin-top: 4px; }
-    .cal-dia .dia-label { font-size: 11px; color: #9ca3af; }
-    .cal-dia .bolinha   { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: #e5e7eb; }
-    .cal-dia.com-dados .bolinha { background: #f97316; }
-    /* Navegação de datas */
+    .cal-dia:hover { border-color: var(--orange); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .cal-dia.hoje  { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(37,99,235,.18); }
+    .cal-dia.sem-dados { opacity: .5; }
+    .cal-dia .dia-semana { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .8px; }
+    .cal-dia .dia-num    { font-size: 22px; font-weight: 800; color: var(--text-1); line-height: 1.2; }
+    .cal-dia .dia-total  { font-size: 20px; font-weight: 800; color: var(--orange); margin-top: 4px; }
+    .cal-dia .dia-label  { font-size: 10px; color: var(--text-3); }
+    .cal-dia .bolinha    { width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; background: var(--border); }
+    .cal-dia.com-dados .bolinha { background: var(--orange); }
+
+    /* ── Nav datas ── */
     .nav-data {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
+        display: flex; align-items: center; gap: 10px;
+        margin-bottom: 20px; flex-wrap: wrap;
     }
     .nav-data a, .nav-data button {
-        padding: 8px 16px;
-        border-radius: 8px;
-        border: 1px solid #d1d5db;
-        background: white;
-        cursor: pointer;
-        font-size: 14px;
+        padding: 7px 14px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text-1);
+        cursor: pointer; font-size: 13px;
         text-decoration: none;
-        color: #374151;
-        transition: background .1s;
+        transition: background .1s, border-color .1s;
+        font-family: inherit;
     }
-    .nav-data a:hover, .nav-data button:hover { background: #f3f4f6; }
-    .nav-data .data-atual {
-        font-size: 18px;
-        font-weight: 700;
-        color: #111827;
-    }
+    .nav-data a:hover, .nav-data button:hover { background: var(--bg-hover); border-color: var(--blue); }
+    .nav-data .data-atual { font-size: 16px; font-weight: 700; color: var(--text-1); }
     .nav-data input[type=date] {
-        padding: 8px 12px;
-        border-radius: 8px;
-        border: 1px solid #d1d5db;
-        font-size: 14px;
-        cursor: pointer;
+        padding: 7px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text-1);
+        font-size: 13px; cursor: pointer; font-family: inherit;
     }
+
+    /* ── Misc ── */
+    .vazio { text-align: center; color: var(--text-3); padding: 24px; font-size: 13px; }
+    .footer { text-align: center; color: var(--text-3); margin-top: 40px; padding-bottom: 28px; font-size: 12px; }
+
+    .btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 8px 18px; margin-bottom: 12px;
+        background: var(--blue);
+        color: white; border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer; text-decoration: none;
+        font-size: 13px; font-weight: 600;
+        transition: opacity .15s, transform .1s;
+        font-family: inherit;
+    }
+    .btn:hover { opacity: .88; transform: translateY(-1px); }
+    .btn.secundario {
+        background: var(--bg-card);
+        color: var(--text-1);
+        border: 1px solid var(--border);
+    }
+    .btn.secundario:hover { background: var(--bg-hover); }
+
     @media (max-width: 1000px) {
         .cards { grid-template-columns: repeat(2, 1fr); }
         .grid-duplo { grid-template-columns: 1fr; }
     }
     @media (max-width: 600px) {
         .cards { grid-template-columns: 1fr; }
-        body { padding: 12px; }
+        .page-content { padding: 16px; }
+        .topbar { padding: 0 16px; }
+        .topbar-nav { display: none; }
     }
 """
+
+# JS injetado no <head> para evitar flash de tema errado ao carregar
+_JS_THEME_INIT = """
+<script>
+(function(){
+    var t = localStorage.getItem('ssa-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', t);
+})();
+</script>"""
+
+# JS de toggle de tema (injetado no <body>)
+_JS_THEME_TOGGLE = """
+<script>
+function _ssaToggleTheme() {
+    var cur  = document.documentElement.getAttribute('data-theme');
+    var next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('ssa-theme', next);
+    document.getElementById('btn-theme').textContent = next === 'dark' ? '☀' : '🌙';
+}
+// Corrige ícone ao carregar
+(function(){
+    var t = document.documentElement.getAttribute('data-theme');
+    var b = document.getElementById('btn-theme');
+    if (b) b.textContent = t === 'dark' ? '☀' : '🌙';
+})();
+</script>"""
 
 
 # ─────────────────────────────────────────────
@@ -218,17 +392,30 @@ def _badge_status(status):
     return f'<span class="badge cinza">{escape(status or "Sem status")}</span>'
 
 
-def _nav(pagina_atual="/"):
+def _topbar(pagina_atual="/"):
     links = [
-        ("/", "🏠 Dashboard"),
-        ("/movimentacoes-hoje", "📋 Movimentações Hoje"),
+        ("/", "Dashboard"),
+        ("/movimentacoes-hoje", "Movimentações Hoje"),
     ]
-    html = '<nav style="margin-bottom:20px;display:flex;gap:10px;flex-wrap:wrap;">'
+    nav_html = ""
     for href, label in links:
-        estilo = "btn" if href != pagina_atual else "btn secundario"
-        html += f'<a href="{href}" class="{estilo}">{escape(label)}</a>'
-    html += "</nav>"
-    return html
+        cls = "ativo" if href == pagina_atual else ""
+        nav_html += f'<a href="{href}" class="{cls}">{escape(label)}</a>'
+
+    return f"""
+    <header class="topbar">
+        <a href="/" class="topbar-brand">
+            <div class="topbar-icon">&#128202;</div>
+            <div>
+                <div class="topbar-name">SSA Monitor</div>
+                <div class="topbar-sub">PROCESSOS</div>
+            </div>
+        </a>
+        <div class="topbar-right">
+            <nav class="topbar-nav">{nav_html}</nav>
+            <button class="btn-theme" id="btn-theme" onclick="_ssaToggleTheme()" title="Alternar tema">🌙</button>
+        </div>
+    </header>"""
 
 
 # ─────────────────────────────────────────────
@@ -353,95 +540,102 @@ def gerar_html_dashboard():
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="refresh" content="30">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SSA Monitor Processos</title>
+    {_JS_THEME_INIT}
     <style>{CSS_BASE}</style>
 </head>
 <body>
-    <h1>SSA Monitor Processos</h1>
-    <div class="subtitulo">Dashboard gerencial · atualiza a cada 30s</div>
-    {_nav("/")}
-
-    <div class="cards">
-        <div class="card">
-            <h2>{total_processos}</h2>
-            <p>Total de processos</p>
+    {_topbar("/")}
+    <div class="page-content">
+        <div class="page-header">
+            <h1>Dashboard</h1>
+            <div class="subtitulo">Visão geral · atualiza automaticamente a cada 30s</div>
         </div>
-        <div class="card sucesso">
-            <h2>{processos_monitorados}</h2>
-            <p>Processos monitorados</p>
-        </div>
-        <a href="/movimentacoes-hoje" class="card alerta">
-            <h2>{novas_movimentacoes}</h2>
-            <p>Processos com mov. hoje</p>
-            {mini_lista}
-            <div class="hint">Clique para ver detalhes ›</div>
-        </a>
-        <div class="card neutro">
-            <h2>{total_orgaos}</h2>
-            <p>Total de órgãos/links</p>
-        </div>
-    </div>
 
-    <section>
-        <h2>Histórico dos últimos 7 dias</h2>
-        <p style="font-size:13px;color:#6b7280;margin-top:0;margin-bottom:14px;">
-            Clique em qualquer dia para ver os detalhes dos processos com movimentação.
-        </p>
-        {html_calendario}
-    </section>
+        <div class="cards">
+            <div class="card">
+                <h2>{total_processos}</h2>
+                <p>Total de processos</p>
+            </div>
+            <div class="card sucesso">
+                <h2>{processos_monitorados}</h2>
+                <p>Processos monitorados</p>
+            </div>
+            <a href="/movimentacoes-hoje" class="card alerta">
+                <h2>{novas_movimentacoes}</h2>
+                <p>Processos com mov. hoje</p>
+                {mini_lista}
+                <div class="hint">Clique para ver detalhes ›</div>
+            </a>
+            <div class="card neutro">
+                <h2>{total_orgaos}</h2>
+                <p>Total de órgãos/links</p>
+            </div>
+        </div>
 
-    <div class="grid-duplo">
         <section>
-            <h2>Processos por status</h2>
+            <h2>Histórico dos últimos 7 dias</h2>
+            <p style="font-size:12px;color:var(--text-2);margin-top:-8px;margin-bottom:16px;">
+                Clique em qualquer dia para ver os detalhes dos processos com movimentação.
+            </p>
+            {html_calendario}
+        </section>
+
+        <div class="grid-duplo">
+            <section>
+                <h2>Processos por status</h2>
+                <table>
+                    <thead><tr><th>Status</th><th>Total</th></tr></thead>
+                    <tbody>{html_status}</tbody>
+                </table>
+            </section>
+            <section>
+                <h2>Ranking por prefeitura</h2>
+                <table>
+                    <thead><tr><th>Prefeitura</th><th>Total de processos</th></tr></thead>
+                    <tbody>{html_ranking}</tbody>
+                </table>
+            </section>
+        </div>
+
+        <section>
+            <h2>Últimas movimentações registradas</h2>
             <table>
-                <thead><tr><th>Status</th><th>Total</th></tr></thead>
-                <tbody>{html_status}</tbody>
+                <thead>
+                    <tr>
+                        <th>Processo</th><th>Empresa</th><th>Prefeitura</th>
+                        <th>Data mov.</th><th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>{html_movimentacoes}</tbody>
             </table>
         </section>
+
         <section>
-            <h2>Ranking por prefeitura</h2>
+            <h2>Últimas consultas realizadas</h2>
             <table>
-                <thead><tr><th>Prefeitura</th><th>Total de processos</th></tr></thead>
-                <tbody>{html_ranking}</tbody>
+                <thead>
+                    <tr>
+                        <th>Processo</th><th>Empresa</th><th>Prefeitura</th>
+                        <th>Resultado</th><th>Data/hora</th>
+                    </tr>
+                </thead>
+                <tbody>{html_consultas}</tbody>
             </table>
         </section>
+
+        <section>
+            <h2>Prefeituras sem robô configurado</h2>
+            <table>
+                <thead><tr><th>Órgão</th><th>Processos</th><th>URL</th></tr></thead>
+                <tbody>{html_orgaos_sem_robo}</tbody>
+            </table>
+        </section>
+
+        <div class="footer">SSA Monitor Processos · Dashboard Web</div>
     </div>
-
-    <section>
-        <h2>Últimas movimentações registradas</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Processo</th><th>Empresa</th><th>Prefeitura</th>
-                    <th>Data mov.</th><th>Descrição</th>
-                </tr>
-            </thead>
-            <tbody>{html_movimentacoes}</tbody>
-        </table>
-    </section>
-
-    <section>
-        <h2>Últimas consultas realizadas</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Processo</th><th>Empresa</th><th>Prefeitura</th>
-                    <th>Resultado</th><th>Data/hora</th>
-                </tr>
-            </thead>
-            <tbody>{html_consultas}</tbody>
-        </table>
-    </section>
-
-    <section>
-        <h2>Prefeituras sem robô configurado</h2>
-        <table>
-            <thead><tr><th>Órgão</th><th>Processos</th><th>URL</th></tr></thead>
-            <tbody>{html_orgaos_sem_robo}</tbody>
-        </table>
-    </section>
-
-    <div class="footer">SSA Monitor Processos · Dashboard Web</div>
+    {_JS_THEME_TOGGLE}
 </body>
 </html>"""
 
@@ -652,53 +846,63 @@ def gerar_html_movimentacoes_hoje(data_str=None):
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{escape(titulo)} · SSA Monitor</title>
+    {_JS_THEME_INIT}
     <style>{CSS_BASE}
     tr.linha-processo {{ cursor: pointer; }}
-    tr.linha-processo:hover td {{ background:#f0f4ff !important; }}
+    tr.linha-processo:hover td {{ background: var(--bg-hover) !important; }}
+    #aviso-filtro {{ background: #dbeafe; color: #1e40af; }}
+    [data-theme="dark"] #aviso-filtro {{ background: #0c1f3d; color: #79b8ff; }}
     </style>
 </head>
 <body>
-    <h1>{escape(titulo)}</h1>
-    <div class="subtitulo">Todos os processos ativos · movimentações detectadas pelo robô neste dia</div>
-    {_nav("/movimentacoes-hoje")}
-    {_nav_datas(data_sel)}
-
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:25px;">
-        <div class="card alerta" style="min-width:160px;">
-            <h2>{total_dia}</h2>
-            <p>Processos com mov. neste dia</p>
+    {_topbar("/movimentacoes-hoje")}
+    <div class="page-content">
+        <div class="page-header">
+            <h1>{escape(titulo)}</h1>
+            <div class="subtitulo">Todos os processos ativos · movimentações detectadas pelo robô neste dia</div>
         </div>
-        {cards_orgaos}
+
+        {_nav_datas(data_sel)}
+
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px;">
+            <div class="card alerta" style="min-width:160px;">
+                <h2>{total_dia}</h2>
+                <p>Processos com mov. neste dia</p>
+            </div>
+            {cards_orgaos}
+        </div>
+
+        <section>
+            <h2>Situação de todos os processos</h2>
+            <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;margin-top:-6px;">
+                <span class="badge verde">✔ N novas</span> = detectadas neste dia &nbsp;|&nbsp;
+                <span class="badge cinza">— sem mov. hoje</span> = sem novidade, mas tem histórico &nbsp;|&nbsp;
+                <strong>Clique em qualquer linha</strong> para detalhes
+            </div>
+            <div id="aviso-filtro" style="display:none;
+                 padding:8px 14px;border-radius:8px;margin-bottom:10px;font-size:13px;"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Processo</th>
+                        <th>Empresa</th>
+                        <th>Prefeitura</th>
+                        <th>Status</th>
+                        <th>Hoje</th>
+                        <th>Último mov.</th>
+                        <th>Última consulta</th>
+                    </tr>
+                </thead>
+                <tbody>{linhas}</tbody>
+            </table>
+        </section>
+
+        <div class="footer">SSA Monitor Processos · Movimentações Hoje</div>
     </div>
-
-    <section>
-        <h2>Situação de todos os processos</h2>
-        <div style="font-size:13px;color:#6b7280;margin-bottom:8px;">
-            <span class="badge verde">✔ N novas</span> = movimentacoes detectadas neste dia &nbsp;|&nbsp;
-            <span class="badge cinza">— sem mov. hoje</span> = sem novidade hoje, mas tem historico &nbsp;|&nbsp;
-            <strong>Clique em qualquer linha</strong> para ver as movimentacoes
-        </div>
-        <div id="aviso-filtro" style="display:none;background:#dbeafe;color:#1e40af;
-             padding:8px 14px;border-radius:8px;margin-bottom:10px;font-size:13px;"></div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Processo</th>
-                    <th>Empresa</th>
-                    <th>Prefeitura</th>
-                    <th>Status</th>
-                    <th>Hoje</th>
-                    <th>Último mov.</th>
-                    <th>Última consulta</th>
-                </tr>
-            </thead>
-            <tbody>{linhas}</tbody>
-        </table>
-    </section>
-
-    <div class="footer">SSA Monitor Processos · Movimentações Hoje</div>
     {js}
+    {_JS_THEME_TOGGLE}
 </body>
 </html>"""
 
@@ -773,71 +977,96 @@ def gerar_html_detalhe_processo(processo_id: int):
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Processo {num} · SSA Monitor</title>
+    {_JS_THEME_INIT}
     <style>{CSS_BASE}</style>
 </head>
 <body>
-    <h1>Processo {num}</h1>
-    <div class="subtitulo">{emp} · {orgao}</div>
-    {_nav("/movimentacoes-hoje")}
-    <a href="javascript:history.back()" class="btn secundario" style="margin-bottom:20px;display:inline-block;">
-        &larr; Voltar
-    </a>
+    {_topbar("/movimentacoes-hoje")}
+    <div class="page-content">
+        <div class="page-header">
+            <h1>Processo {num}</h1>
+            <div class="subtitulo">{emp} · {orgao}</div>
+        </div>
 
-    <div class="cards" style="grid-template-columns:repeat(3,minmax(160px,1fr));margin-bottom:25px;">
-        <div class="card">
-            <h2 style="font-size:20px;">{num}</h2>
-            <p>Numero do processo</p>
+        <a href="javascript:history.back()" class="btn secundario" style="margin-bottom:20px;">
+            &larr; Voltar
+        </a>
+
+        <div class="cards" style="grid-template-columns:repeat(3,minmax(160px,1fr));margin-bottom:22px;">
+            <div class="card">
+                <h2 style="font-size:18px;letter-spacing:-.5px;">{num}</h2>
+                <p>Número do processo</p>
+            </div>
+            <div class="card">
+                <h2 style="font-size:18px;letter-spacing:-.5px;">{mun}</h2>
+                <p>Prefeitura / Município</p>
+            </div>
+            <div class="card sucesso">
+                <h2 style="font-size:16px;letter-spacing:0;">{status}</h2>
+                <p>Status atual</p>
+            </div>
         </div>
-        <div class="card">
-            <h2 style="font-size:20px;">{mun}</h2>
-            <p>Prefeitura / Municipio</p>
-        </div>
-        <div class="card sucesso">
-            <h2 style="font-size:20px;">{status}</h2>
-            <p>Status atual</p>
-        </div>
+
+        <section style="margin-bottom:20px;">
+            <h2>Informações do processo</h2>
+            <table style="width:auto;">
+                <tr>
+                    <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Empresa</td>
+                    <td><strong>{emp}</strong></td>
+                </tr>
+                <tr>
+                    <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Robô</td>
+                    <td>{robo}</td>
+                </tr>
+                <tr>
+                    <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Último mov.</td>
+                    <td>{dt_mov}</td>
+                </tr>
+                <tr>
+                    <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Última consulta</td>
+                    <td>{ult_c}</td>
+                </tr>
+                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;'>Portal</td><td>" + link_portal + "</td></tr>" if link_portal else ""}
+            </table>
+        </section>
+
+        <section>
+            <h2>Histórico de movimentações
+                <span style="font-size:13px;color:var(--text-2);font-weight:400;">({len(movimentacoes)} registros)</span>
+            </h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="white-space:nowrap;">Data mov.</th>
+                        <th style="white-space:nowrap;">Capturado em</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>{linhas_mov}</tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>Histórico de consultas do robô
+                <span style="font-size:13px;color:var(--text-2);font-weight:400;">(últimas {len(historico)})</span>
+            </h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Resultado</th>
+                        <th>Data/hora</th>
+                        <th>Mensagem</th>
+                    </tr>
+                </thead>
+                <tbody>{linhas_hist}</tbody>
+            </table>
+        </section>
+
+        <div class="footer">SSA Monitor Processos · Detalhe do Processo</div>
     </div>
-
-    <section style="margin-bottom:20px;">
-        <table style="width:auto;font-size:14px;">
-            <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Empresa</td>     <td><strong>{emp}</strong></td></tr>
-            <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Robo</td>        <td>{robo}</td></tr>
-            <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Ultimo mov.</td> <td>{dt_mov}</td></tr>
-            <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Ultima consulta</td><td>{ult_c}</td></tr>
-            {"<tr><td style='color:#6b7280;padding:4px 12px 4px 0;'>Portal</td><td>" + link_portal + "</td></tr>" if link_portal else ""}
-        </table>
-    </section>
-
-    <section>
-        <h2>Historico de movimentacoes <span style="font-size:14px;color:#6b7280;font-weight:normal;">({len(movimentacoes)} registros)</span></h2>
-        <table>
-            <thead>
-                <tr>
-                    <th style="white-space:nowrap;">Data mov.</th>
-                    <th style="white-space:nowrap;">Capturado em</th>
-                    <th>Descricao</th>
-                </tr>
-            </thead>
-            <tbody>{linhas_mov}</tbody>
-        </table>
-    </section>
-
-    <section>
-        <h2>Historico de consultas do robo <span style="font-size:14px;color:#6b7280;font-weight:normal;">(ultimas {len(historico)})</span></h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Resultado</th>
-                    <th>Data/hora</th>
-                    <th>Mensagem</th>
-                </tr>
-            </thead>
-            <tbody>{linhas_hist}</tbody>
-        </table>
-    </section>
-
-    <div class="footer">SSA Monitor Processos · Detalhe do Processo</div>
+    {_JS_THEME_TOGGLE}
 </body>
 </html>"""
 
