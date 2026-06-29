@@ -2,7 +2,7 @@ from playwright.async_api import async_playwright
 import re
 
 from robots.base.robot_base import RobotBase
-from database.repositories import registrar_movimentacao
+
 from utils.logger import get_logger
 
 log = get_logger("sjp")
@@ -70,12 +70,8 @@ async def executar_consulta_sjp(processo):
             movimentacoes.append(texto_linha)
 
         log.info(f"Movimentacoes extraidas: {len(movimentacoes)}")
-
-        for mov in movimentacoes:
-            try:
-                registrar_movimentacao(processo["id"], None, mov)
-            except Exception as e:
-                log.warning(f"Erro ao salvar movimentacao: {e}")
+        # O salvamento individual com data correta é feito pelo consultar_com_robo
+        # em monitoramento_service.py — não salvar aqui com data=None
 
         status = None
         for mov in movimentacoes:
