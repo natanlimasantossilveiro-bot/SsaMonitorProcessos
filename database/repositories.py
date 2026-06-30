@@ -1,4 +1,7 @@
+import re
 from database.connection import criar_conexao
+
+_PATTERN_HORARIO = re.compile(r'\d{2}/\d{2}/\d{4}\s*(\d{2}:\d{2}:\d{2})')
 
 
 # =====================================================

@@ -1,0 +1,726 @@
+========================================
+RELATÓRIO DE MONITORAMENTO DE PROCESSOS
+========================================
+Início: 30/06/2026 16:58:26
+Fim: 30/06/2026 17:11:29
+Tempo total: 00:13:02
+
+=== RESUMO DA EXECUÇÃO ===
+Total de processos: 78
+Nova movimentação: 0
+Sem nova movimentação: 0
+Processo não encontrado: 1
+Erro de consulta: 3
+Sistema fora: 0
+Sem robô configurado: 2
+OK: 72
+
+=== EVENTOS POR PROCESSO ===
+----------------------------------------
+Processo ID: 71
+Número: 01-144125
+Empresa: Jardins do Batel
+Município: Curitiba
+Órgão: Prefeitura Municipal de Curitiba
+Robô: curitiba
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 64
+Número: 01-213704
+Empresa: DG4
+Município: Curitiba
+Órgão: Prefeitura Municipal de Curitiba
+Robô: curitiba
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 1
+Número: 01-144125/2026
+Empresa: None
+Município: None
+Órgão: Prefeitura Municipal de Curitiba
+Robô: curitiba
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 72
+Número: 01-080428
+Empresa: Padre Agostinho
+Município: Curitiba
+Órgão: Prefeitura Municipal de Curitiba
+Robô: curitiba
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 63
+Número: 01-047740
+Empresa: Rama
+Município: Curitiba
+Órgão: Prefeitura Municipal de Curitiba
+Robô: curitiba
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 73
+Número: 01-145925
+Empresa: Real Empreendimentos
+Município: Curitiba
+Órgão: Prefeitura Municipal de Curitiba
+Robô: curitiba
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 74
+Número: 01-077886
+Empresa: Hesa-104
+Município: Curitiba
+Órgão: Prefeitura Municipal de Curitiba
+Robô: curitiba
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 3
+Número: 19734
+Empresa: AMF
+Município: Ponta Grossa
+Órgão: Ponta Grossa
+Robô: ponta_grossa
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 2
+Número: 33648
+Empresa: AMF
+Município: Ponta Grossa
+Órgão: Ponta Grossa
+Robô: ponta_grossa
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 4
+Número: 59363
+Empresa: AMF
+Município: Araucária
+Órgão: Araucária
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 5
+Número: 77812
+Empresa: AMF
+Município: Araucária
+Órgão: Araucária
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 6
+Número: 13658
+Empresa: RSV III
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: ERRO_CONSULTA
+Mensagem: Iframe com formulario nao encontrado
+----------------------------------------
+Processo ID: 8
+Número: 13660
+Empresa: RSV III
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: ERRO_CONSULTA
+Mensagem: Iframe com formulario nao encontrado
+----------------------------------------
+Processo ID: 10
+Número: 12284
+Empresa: RSV III
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 7
+Número: 13659
+Empresa: RSV III
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 9
+Número: 12279
+Empresa: RSV III
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 12
+Número: 12270
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 11
+Número: 12290
+Empresa: RSV III
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 29
+Número: 12755
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 13
+Número: 18811
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 31
+Número: 12435
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 32
+Número: 12494
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 30
+Número: 12431
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 36
+Número: 12512
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 34
+Número: 12498
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 33
+Número: 12496
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 39
+Número: 12502
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 35
+Número: 12510
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 37
+Número: 12500
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 40
+Número: 12514
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 38
+Número: 12501
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 42
+Número: 12505
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 43
+Número: 12504
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 41
+Número: 12503
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 44
+Número: 12506
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 46
+Número: 13650
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 45
+Número: 12507
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 51
+Número: 12515
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 47
+Número: 12508
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 48
+Número: 12509
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 49
+Número: 12511
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: ERRO_CONSULTA
+Mensagem: Falha ao resolver captcha: {'status': 'ERRO_API_CAPTCHA', 'mensagem': 'ERROR_CAPTCHA_UNSOLVABLE'}
+----------------------------------------
+Processo ID: 50
+Número: 12513
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 52
+Número: 12516
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 53
+Número: 13656
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 54
+Número: 12519
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 55
+Número: 13657
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 56
+Número: 12520
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 57
+Número: 12493
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 58
+Número: 12495
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 59
+Número: 12497
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 60
+Número: 12499
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 61
+Número: 12517
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 62
+Número: 12518
+Empresa: Nova Pinhais
+Município: Pinhais
+Órgão: Pinhais
+Robô: atende_net
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 14
+Número: 202202113918175081.
+Empresa: Aldeia
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 17
+Número: 202202113718966059.
+Empresa: AMF
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 16
+Número: 202211213112153610.
+Empresa: Aldeia
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 18
+Número: 202206024617358434.
+Empresa: AMF
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 15
+Número: 202210031019864399.
+Empresa: Aldeia
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 20
+Número: 202302223016902354.
+Empresa: AMF
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 21
+Número: 202306225610522090.
+Empresa: Aldeia
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 22
+Número: 202309065614326802.
+Empresa: AMF
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 19
+Número: 202211212612383476.
+Empresa: AMF
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 23
+Número: 202302222416817192.
+Empresa: AMF
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 27
+Número: 202502211418698526.
+Empresa: Aldeia
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 28
+Número: 202502211718616287.
+Empresa: AMF
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 24
+Número: 202306224810276468.
+Empresa: AMF
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 77
+Número: 202403135515309328
+Empresa: None
+Município: None
+Órgão: Prefeitura Municipal de Curitiba
+Robô: curitiba
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 25
+Número: 202403135515309328.
+Empresa: Aldeia
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 78
+Número: 202403130816576741
+Empresa: None
+Município: None
+Órgão: Prefeitura Municipal de Curitiba
+Robô: curitiba
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 26
+Número: 202403130816576741.
+Empresa: AMF
+Município: São José dos Pinhais
+Órgão: São José dos Pinhais
+Robô: sjp
+Status: OK
+Mensagem: None
+----------------------------------------
+Processo ID: 65
+Número: 9574
+Empresa: Golgi FII
+Município: Franco da Rocha
+Órgão: Franco da Rocha
+Robô: franco_rocha
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 66
+Número: 2616
+Empresa: Golgi FII
+Município: Franco da Rocha
+Órgão: Franco da Rocha
+Robô: franco_rocha
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 67
+Número: 2613
+Empresa: Golgi FII
+Município: Franco da Rocha
+Órgão: Franco da Rocha
+Robô: franco_rocha
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 69
+Número: 2270
+Empresa: Golgi FII
+Município: Caieiras
+Órgão: Caieiras
+Robô: caieiras
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 70
+Número: 2269
+Empresa: Golgi FII
+Município: Caieiras
+Órgão: Caieiras
+Robô: caieiras
+Status: OK
+Mensagem: Consulta realizada com sucesso
+----------------------------------------
+Processo ID: 68
+Número: 19362
+Empresa: Golgi FII
+Município: Caieiras
+Órgão: Caieiras
+Robô: caieiras
+Status: PROCESSO_NAO_ENCONTRADO
+Mensagem: Processo nao encontrado no sistema
+----------------------------------------
+Processo ID: 75
+Número: 02023.005045/2025-02
+Empresa: Vanguard
+Município: 
+Órgão: Órgão não informado
+Robô: None
+Status: SEM_ROBO_CONFIGURADO
+Mensagem: Não existe robô configurado para: None
+----------------------------------------
+Processo ID: 76
+Número: 02023.002189/2025-07
+Empresa: Vanguard
+Município: 
+Órgão: Órgão não informado
+Robô: None
+Status: SEM_ROBO_CONFIGURADO
+Mensagem: Não existe robô configurado para: None
+
+=== ÓRGÃOS/LINKS SEM ROBÔ CONFIGURADO ===
+----------------------------------------
+Órgão: Órgão não informado
+Total de processos: 2
+URL: https://sei.ibama.gov.br/controlador_externo.php?acao=usuario_externo_logar&id_orgao_acesso_externo=0

@@ -1,3 +1,4 @@
+import base64
 import os
 import sys
 from datetime import date, timedelta
@@ -32,6 +33,8 @@ from dashboard.dashboard_html import gerar_linhas_tabela
 
 HOST = os.getenv("DASHBOARD_HOST", "localhost")
 PORTA = int(os.getenv("DASHBOARD_PORT", "8000"))
+DASHBOARD_USER = os.getenv("DASHBOARD_USER", "ssa")
+DASHBOARD_PASS = os.getenv("DASHBOARD_PASS", "monitor2026")
 
 # ─────────────────────────────────────────────
 # CSS compartilhado
@@ -1077,10 +1080,38 @@ def gerar_html_detalhe_processo(processo_id: int):
 class DashboardHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
-        # Suprime logs de acesso no terminal (produção)
         pass
 
+    def _pedir_login(self):
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="SSA Monitor"')
+        self.send_header("Content-type", "text/html; charset=utf-8")
+        self.end_headers()
+        pagina = """<!DOCTYPE html><html><head><meta charset="utf-8">
+        <title>Acesso negado</title>
+        <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#fff;margin:0}
+        .box{text-align:center}h2{margin-bottom:.5rem}p{color:#94a3b8}</style></head>
+        <body><div class="box"><h2>Acesso negado</h2><p>Informe usuario e senha para acessar o SSA Monitor.</p></div></body></html>"""
+        self.wfile.write(pagina.encode("utf-8"))
+
+    def _autenticar(self) -> bool:
+        auth = self.headers.get("Authorization", "")
+        if not auth.startswith("Basic "):
+            self._pedir_login()
+            return False
+        try:
+            credenciais = base64.b64decode(auth[6:]).decode("utf-8")
+            usuario, senha = credenciais.split(":", 1)
+            if usuario == DASHBOARD_USER and senha == DASHBOARD_PASS:
+                return True
+        except Exception:
+            pass
+        self._pedir_login()
+        return False
+
     def do_GET(self):
+        if not self._autenticar():
+            return
         parsed = urlparse(self.path)
         rota = parsed.path
 
