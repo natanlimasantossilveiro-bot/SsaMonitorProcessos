@@ -788,8 +788,12 @@ def gerar_html_movimentacoes_hoje(data_str=None):
 
         link_detalhe = f"/processo/{pid}"
 
+        status_raw = escape(str(p.get("status_atual") or ""))
         linhas += f"""
-        <tr data-prefeitura="{escape(orgao_raw)}" data-tem-mov="{1 if total > 0 else 0}"
+        <tr data-prefeitura="{escape(orgao_raw)}"
+            data-empresa="{emp}"
+            data-status="{status_raw}"
+            data-tem-mov="{1 if total > 0 else 0}"
             style="{cor_linha}"
             onclick="window.location='{link_detalhe}'"
             title="Ver detalhes e movimentacoes"
@@ -820,28 +824,68 @@ def gerar_html_movimentacoes_hoje(data_str=None):
 
     js = """
     <script>
-    let filtroAtivo = null;
-    function filtrarPrefeitura(nome) {
-        const rows = document.querySelectorAll('tr[data-prefeitura]');
+    function popularSelect(id, attr) {
+        const vals = new Set();
+        document.querySelectorAll('tr[data-prefeitura]').forEach(r => {
+            const v = r.dataset[attr];
+            if (v) vals.add(v);
+        });
+        const sel = document.getElementById(id);
+        [...vals].sort().forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v; opt.textContent = v;
+            sel.appendChild(opt);
+        });
+    }
 
-        if (filtroAtivo === nome) {
-            rows.forEach(r => r.style.display = '');
-            filtroAtivo = null;
-            document.getElementById('aviso-filtro').style.display = 'none';
-            return;
-        }
+    function aplicarFiltros() {
+        const texto   = document.getElementById('filtro-texto').value.toLowerCase();
+        const pref    = document.getElementById('filtro-prefeitura').value;
+        const emp     = document.getElementById('filtro-empresa').value;
+        const status  = document.getElementById('filtro-status').value;
 
-        filtroAtivo = nome;
-        rows.forEach(r => {
-            r.style.display = (r.dataset.prefeitura === nome) ? '' : 'none';
+        let visiveis = 0;
+        document.querySelectorAll('tr[data-prefeitura]').forEach(r => {
+            const ok =
+                (!pref   || r.dataset.prefeitura === pref) &&
+                (!emp    || r.dataset.empresa    === emp)  &&
+                (!status || r.dataset.status     === status) &&
+                (!texto  || r.cells[0].textContent.toLowerCase().includes(texto)
+                         || r.cells[1].textContent.toLowerCase().includes(texto));
+            r.style.display = ok ? '' : 'none';
+            if (ok) visiveis++;
         });
 
+        const temFiltro = pref || emp || status || texto;
         const av = document.getElementById('aviso-filtro');
-        av.style.display = '';
-        av.innerHTML = '🔍 Filtrando por: <strong>' + nome + '</strong> &nbsp;'
-            + '<a href="#" onclick="filtrarPrefeitura(\'' + nome + '\');return false;"'
-            + ' style="color:#2563eb;">limpar filtro ✕</a>';
+        if (temFiltro) {
+            av.style.display = '';
+            av.innerHTML = 'Exibindo <strong>' + visiveis + '</strong> processo(s) &nbsp;'
+                + '<a href="#" onclick="limparFiltros();return false;" style="color:#2563eb;">limpar filtros ✕</a>';
+        } else {
+            av.style.display = 'none';
+        }
     }
+
+    function limparFiltros() {
+        document.getElementById('filtro-texto').value = '';
+        document.getElementById('filtro-prefeitura').value = '';
+        document.getElementById('filtro-empresa').value = '';
+        document.getElementById('filtro-status').value = '';
+        aplicarFiltros();
+    }
+
+    function filtrarPrefeitura(nome) {
+        document.getElementById('filtro-prefeitura').value = nome;
+        aplicarFiltros();
+        document.getElementById('barra-filtros').scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        popularSelect('filtro-prefeitura', 'prefeitura');
+        popularSelect('filtro-empresa',    'empresa');
+        popularSelect('filtro-status',     'status');
+    });
     </script>
     """
 
@@ -883,6 +927,27 @@ def gerar_html_movimentacoes_hoje(data_str=None):
                 <span class="badge verde">✔ N novas</span> = detectadas neste dia &nbsp;|&nbsp;
                 <span class="badge cinza">— sem mov. hoje</span> = sem novidade, mas tem histórico &nbsp;|&nbsp;
                 <strong>Clique em qualquer linha</strong> para detalhes
+            </div>
+            <div id="barra-filtros" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center;">
+                <input id="filtro-texto" type="text" placeholder="Buscar processo ou empresa..."
+                    oninput="aplicarFiltros()"
+                    style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);
+                           border-radius:8px;font-size:13px;background:var(--bg-card);color:var(--text-1);">
+                <select id="filtro-prefeitura" onchange="aplicarFiltros()"
+                    style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;
+                           font-size:13px;background:var(--bg-card);color:var(--text-1);cursor:pointer;">
+                    <option value="">Todas as prefeituras</option>
+                </select>
+                <select id="filtro-empresa" onchange="aplicarFiltros()"
+                    style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;
+                           font-size:13px;background:var(--bg-card);color:var(--text-1);cursor:pointer;">
+                    <option value="">Todas as empresas</option>
+                </select>
+                <select id="filtro-status" onchange="aplicarFiltros()"
+                    style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;
+                           font-size:13px;background:var(--bg-card);color:var(--text-1);cursor:pointer;">
+                    <option value="">Todos os status</option>
+                </select>
             </div>
             <div id="aviso-filtro" style="display:none;
                  padding:8px 14px;border-radius:8px;margin-bottom:10px;font-size:13px;"></div>
