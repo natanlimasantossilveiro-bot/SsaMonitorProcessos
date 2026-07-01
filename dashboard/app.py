@@ -748,56 +748,47 @@ def gerar_html_movimentacoes_hoje(data_str=None):
     if not cards_orgaos:
         cards_orgaos = '<p style="color:#6b7280">Nenhuma movimentação detectada neste dia.</p>'
 
-    # Linhas da tabela — clicáveis para expandir movimentações
-    linhas = ""
-    idx = 0
-    for p in processos:
-        pid    = p.get("processo_id", "")
-        num    = escape(str(p.get("numero_processo") or ""))
-        emp    = escape(str(p.get("empresa") or "—"))
-        orgao_raw = str(p.get("orgao") or "")
-        orgao  = escape(orgao_raw)
-        status = _badge_status(str(p.get("status_atual") or ""))
-        total  = p.get("total_movimentacoes_hoje", 0)
-        dt_mov = escape(str(p.get("data_ultimo_movimento") or "—"))
-        ult_c  = escape(str(p.get("ultima_consulta") or "—"))
+    STATUS_CONCLUIDOS = {"Deferido", "Finalizado", "Indeferido", "Encerrado"}
 
-        # Movimentações deste dia (pode ser vazio)
+    def _gerar_linha(p, concluido=False):
+        pid       = p.get("processo_id", "")
+        num       = escape(str(p.get("numero_processo") or ""))
+        emp       = escape(str(p.get("empresa") or "—"))
+        orgao_raw = str(p.get("orgao") or "")
+        orgao     = escape(orgao_raw)
+        status_val= str(p.get("status_atual") or "")
+        status    = _badge_status(status_val)
+        status_raw= escape(status_val)
+        total     = p.get("total_movimentacoes_hoje", 0)
+        dt_mov    = escape(str(p.get("data_ultimo_movimento") or "—"))
+        ult_c     = escape(str(p.get("ultima_consulta") or "—"))
+
         movs_hoje_proc = movs_agrupadas.get(pid, [])
-        # Histórico completo (últimas N movimentações do banco)
         movs_hist_proc = movs_historico.get(pid, [])
 
         if total > 0:
             indicador = f'<span class="badge verde">✔ {total} nova{"s" if total > 1 else ""}</span>'
-            cor_linha  = "background:#fff8f0;"
-            cor_borda  = "#f97316"
-            titulo_det = f"Movimentacoes detectadas neste dia — processo {num}"
-            conteudo_expandido = _html_movimentacoes_expandidas(movs_hoje_proc)
+            cor_linha = "background:#fff8f0;"
         elif movs_hist_proc:
             indicador = '<span class="badge cinza">— sem mov. hoje</span>'
-            cor_linha  = ""
-            cor_borda  = "#d1d5db"
-            titulo_det = f"Ultimo historico registrado — processo {num}"
-            conteudo_expandido = _html_movimentacoes_expandidas(movs_hist_proc)
+            cor_linha = ""
         else:
             indicador = '<span class="badge cinza">— sem mov.</span>'
-            cor_linha  = ""
-            cor_borda  = "#d1d5db"
-            titulo_det = f"Processo {num}"
-            conteudo_expandido = '<p style="color:#6b7280;margin:0">Nenhuma movimentacao registrada no historico.</p>'
+            cor_linha = ""
 
+        opacidade = "opacity:0.55;" if concluido else ""
         link_detalhe = f"/processo/{pid}"
 
-        status_raw = escape(str(p.get("status_atual") or ""))
-        linhas += f"""
+        return f"""
         <tr data-prefeitura="{escape(orgao_raw)}"
             data-empresa="{emp}"
             data-status="{status_raw}"
             data-tem-mov="{1 if total > 0 else 0}"
-            style="{cor_linha}"
+            data-concluido="{'1' if concluido else '0'}"
+            style="{cor_linha}{opacidade}"
             onclick="window.location='{link_detalhe}'"
             title="Ver detalhes e movimentacoes"
-            class="linha-processo">
+            class="linha-processo{'  concluido' if concluido else ''}">
             <td>
                 <a href="{link_detalhe}" style="color:inherit;text-decoration:none;font-weight:700;">
                     {num}
@@ -811,7 +802,22 @@ def gerar_html_movimentacoes_hoje(data_str=None):
             <td style="color:#9ca3af;font-size:12px">{ult_c} <span style="float:right">›</span></td>
         </tr>"""
 
-        idx += 1
+    ativos     = [p for p in processos if str(p.get("status_atual") or "") not in STATUS_CONCLUIDOS]
+    concluidos = [p for p in processos if str(p.get("status_atual") or "") in STATUS_CONCLUIDOS]
+
+    linhas = "".join(_gerar_linha(p, concluido=False) for p in ativos)
+
+    if concluidos:
+        linhas += f"""
+        <tr class="separador-concluidos" data-prefeitura="" data-empresa="" data-status="" data-tem-mov="0" data-concluido="1">
+            <td colspan="7" style="
+                text-align:center;font-size:11px;font-weight:600;letter-spacing:.08em;
+                text-transform:uppercase;color:var(--text-3);padding:10px 0 6px;
+                border-top:2px dashed var(--border);background:transparent;pointer-events:none;">
+                Processos concluídos ({len(concluidos)})
+            </td>
+        </tr>"""
+        linhas += "".join(_gerar_linha(p, concluido=True) for p in concluidos)
 
     if not linhas:
         linhas = '<tr><td colspan="7" class="vazio">Nenhum processo encontrado.</td></tr>'
