@@ -20,6 +20,8 @@ from services.captcha_simulador_service import (
     simular_resposta_captcha,
 )
 
+from dashboard import auth, auth_repository
+
 
 def importar_planilha():
     resultado = importar_planilha_base("Planilha_Base.xlsx")
@@ -58,6 +60,40 @@ def abrir_pasta_captchas():
     os.startfile(os.path.abspath(pasta))
 
 
+def criar_usuario_administrador():
+    print("\n=== CRIAR USUÁRIO ADMINISTRADOR ===")
+
+    nome = input("Nome: ").strip()
+    email = input("E-mail: ").strip().lower()
+
+    if not nome or not email:
+        print("Nome e e-mail são obrigatórios.")
+        return
+
+    if auth_repository.buscar_usuario_por_email(email):
+        print(f"\nJá existe um usuário cadastrado com o e-mail {email}.")
+        return
+
+    # Entrada visível (sem getpass): em alguns terminais (ex.: integrado do
+    # VS Code no Windows) a leitura mascarada trava sem capturar nada. Sem
+    # problema aqui — é uma senha temporária, trocada no primeiro login.
+    senha_temporaria = input("Senha temporária (fica visível ao digitar): ").strip()
+
+    if len(senha_temporaria) < 8:
+        print("A senha temporária deve ter pelo menos 8 caracteres.")
+        return
+
+    auth_repository.criar_usuario(
+        nome=nome,
+        email=email,
+        senha_hash=auth.hash_senha(senha_temporaria),
+        is_admin=True,
+    )
+
+    print(f"\nUsuário administrador {email} criado com sucesso.")
+    print("Ele precisará trocar a senha no primeiro login.")
+
+
 def exibir_menu():
     print("\n=== SSA MONITOR PROCESSOS ===")
     print("1 - Importar planilha base")
@@ -69,6 +105,7 @@ def exibir_menu():
     print("7 - Abrir pasta de captchas")
     print("8 - Simular resposta de captcha")
     print("9 - Iniciar monitoramento automático (hora em hora)")
+    print("10 - Criar usuário administrador do dashboard")
     print("0 - Sair")
 
     return input("\nEscolha uma opção: ").strip()
@@ -104,7 +141,10 @@ async def main():
 
         elif opcao == "9":
             print("\n🚀 Iniciando monitoramento automático...")
-            await scheduler_monitoramento() 
+            await scheduler_monitoramento()
+
+        elif opcao == "10":
+            criar_usuario_administrador()
 
         elif opcao == "0":
             print("\nEncerrando sistema...")

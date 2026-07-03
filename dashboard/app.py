@@ -1,4 +1,3 @@
-import base64
 import os
 import sys
 from datetime import date, timedelta
@@ -8,6 +7,8 @@ from html import escape
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from dashboard import auth, auth_repository
+from utils.logger import get_logger
 from dashboard.dashboard_repository import (
     buscar_total_processos,
     buscar_processos_monitorados,
@@ -33,8 +34,6 @@ from dashboard.dashboard_html import gerar_linhas_tabela
 
 HOST = os.getenv("DASHBOARD_HOST", "localhost")
 PORTA = int(os.getenv("DASHBOARD_PORT", "8000"))
-DASHBOARD_USER = os.getenv("DASHBOARD_USER", "ssa")
-DASHBOARD_PASS = os.getenv("DASHBOARD_PASS", "monitor2026")
 
 # ─────────────────────────────────────────────
 # CSS compartilhado
@@ -395,15 +394,26 @@ def _badge_status(status):
     return f'<span class="badge cinza">{escape(status or "Sem status")}</span>'
 
 
-def _topbar(pagina_atual="/"):
+def _topbar(pagina_atual="/", usuario=None):
     links = [
         ("/", "Dashboard"),
         ("/movimentacoes-hoje", "Movimentações Hoje"),
     ]
+    if usuario and usuario.get("is_admin"):
+        links.append(("/admin/usuarios", "Usuários"))
+
     nav_html = ""
     for href, label in links:
         cls = "ativo" if href == pagina_atual else ""
         nav_html += f'<a href="{href}" class="{cls}">{escape(label)}</a>'
+
+    usuario_html = ""
+    if usuario:
+        nome = escape(str(usuario.get("nome") or usuario.get("email") or ""))
+        usuario_html = (
+            f'<span style="font-size:12px;color:rgba(255,255,255,.55);margin-right:4px;">{nome}</span>'
+            f'<a href="/logout" class="btn-theme" style="width:auto;padding:0 12px;text-decoration:none;font-size:12px;">Sair</a>'
+        )
 
     return f"""
     <header class="topbar">
@@ -416,6 +426,7 @@ def _topbar(pagina_atual="/"):
         </a>
         <div class="topbar-right">
             <nav class="topbar-nav">{nav_html}</nav>
+            {usuario_html}
             <button class="btn-theme" id="btn-theme" onclick="_ssaToggleTheme()" title="Alternar tema">🌙</button>
         </div>
     </header>"""
@@ -470,7 +481,7 @@ def _gerar_calendario_7_dias(historico):
     return html
 
 
-def gerar_html_dashboard():
+def gerar_html_dashboard(usuario=None):
     total_processos       = buscar_total_processos()
     processos_monitorados = buscar_processos_monitorados()
     total_orgaos          = buscar_total_orgaos()
@@ -549,7 +560,7 @@ def gerar_html_dashboard():
     <style>{CSS_BASE}</style>
 </head>
 <body>
-    {_topbar("/")}
+    {_topbar("/", usuario)}
     <div class="page-content">
         <div class="page-header">
             <h1>Dashboard</h1>
@@ -712,7 +723,7 @@ def _html_movimentacoes_expandidas(movs):
     </table>"""
 
 
-def gerar_html_movimentacoes_hoje(data_str=None):
+def gerar_html_movimentacoes_hoje(data_str=None, usuario=None):
     hoje = date.today()
     try:
         data_sel = date.fromisoformat(data_str) if data_str else hoje
@@ -910,7 +921,7 @@ def gerar_html_movimentacoes_hoje(data_str=None):
     </style>
 </head>
 <body>
-    {_topbar("/movimentacoes-hoje")}
+    {_topbar("/movimentacoes-hoje", usuario)}
     <div class="page-content">
         <div class="page-header">
             <h1>{escape(titulo)}</h1>
@@ -984,7 +995,7 @@ def gerar_html_movimentacoes_hoje(data_str=None):
 # ─────────────────────────────────────────────
 # PÁGINA: /processo/<id>  — detalhe completo
 # ─────────────────────────────────────────────
-def gerar_html_detalhe_processo(processo_id: int):
+def gerar_html_detalhe_processo(processo_id: int, usuario=None):
     processo  = buscar_processo_por_id_dashboard(processo_id)
     if not processo:
         return None
@@ -1057,7 +1068,7 @@ def gerar_html_detalhe_processo(processo_id: int):
     <style>{CSS_BASE}</style>
 </head>
 <body>
-    {_topbar("/movimentacoes-hoje")}
+    {_topbar("/movimentacoes-hoje", usuario)}
     <div class="page-content">
         <div class="page-header">
             <h1>Processo {num}</h1>
@@ -1146,86 +1157,437 @@ def gerar_html_detalhe_processo(processo_id: int):
 
 
 # ─────────────────────────────────────────────
+# CSS da tela de autenticação (fora do layout com topbar)
+# ─────────────────────────────────────────────
+CSS_AUTH = """
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: 'Inter', Arial, sans-serif;
+        background: #0f172a;
+        color: #0f172a;
+        min-height: 100vh;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 14px;
+    }
+    .auth-box {
+        background: #fff;
+        border-radius: 12px;
+        padding: 32px 34px;
+        width: 100%; max-width: 360px;
+        box-shadow: 0 8px 28px rgba(0,0,0,.25);
+    }
+    .auth-box h1 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .auth-box .sub { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+    .auth-box label { display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 5px; margin-top: 14px; }
+    .auth-box input {
+        width: 100%; padding: 9px 12px;
+        border: 1px solid #e2e8f0; border-radius: 8px;
+        font-size: 14px; font-family: inherit;
+    }
+    .auth-box button {
+        width: 100%; margin-top: 20px;
+        padding: 10px; border: none; border-radius: 8px;
+        background: #2563eb; color: #fff;
+        font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .auth-box button:hover { opacity: .9; }
+    .auth-erro {
+        background: #fef2f2; color: #b91c1c;
+        border: 1px solid #fecaca; border-radius: 8px;
+        padding: 9px 12px; font-size: 13px; margin-top: 14px;
+    }
+"""
+
+
+def gerar_html_login(erro=None):
+    erro_html = f'<div class="auth-erro">{escape(erro)}</div>' if erro else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Entrar · SSA Monitor</title>
+    <style>{CSS_AUTH}</style>
+</head>
+<body>
+    <div class="auth-box">
+        <h1>SSA Monitor Processos</h1>
+        <div class="sub">Acesso restrito — uso exclusivo do escritório</div>
+        <form method="POST" action="/login">
+            <label>E-mail</label>
+            <input type="email" name="email" required autofocus>
+            <label>Senha</label>
+            <input type="password" name="senha" required>
+            <button type="submit">Entrar</button>
+        </form>
+        {erro_html}
+    </div>
+</body>
+</html>"""
+
+
+def gerar_html_trocar_senha(token_csrf, erro=None, obrigatorio=False):
+    erro_html = f'<div class="auth-erro">{escape(erro)}</div>' if erro else ""
+    aviso = (
+        '<div class="sub">Defina uma senha nova antes de continuar.</div>'
+        if obrigatorio else
+        '<div class="sub">Trocar minha senha</div>'
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Trocar senha · SSA Monitor</title>
+    <style>{CSS_AUTH}</style>
+</head>
+<body>
+    <div class="auth-box">
+        <h1>Trocar senha</h1>
+        {aviso}
+        <form method="POST" action="/trocar-senha">
+            <input type="hidden" name="csrf" value="{escape(token_csrf)}">
+            <label>Senha atual</label>
+            <input type="password" name="senha_atual" required>
+            <label>Nova senha</label>
+            <input type="password" name="senha_nova" required minlength="8">
+            <label>Confirmar nova senha</label>
+            <input type="password" name="senha_confirma" required minlength="8">
+            <button type="submit">Salvar</button>
+        </form>
+        {erro_html}
+    </div>
+</body>
+</html>"""
+
+
+def gerar_html_admin_usuarios(usuario, usuarios, token_csrf, mensagem=None):
+    mensagem_html = (
+        f'<div style="background:#dbeafe;color:#1e40af;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;">{escape(mensagem)}</div>'
+        if mensagem else ""
+    )
+
+    linhas = ""
+    for u in usuarios:
+        status = "Ativo" if u.get("ativo") else "Desativado"
+        badge_cls = "verde" if u.get("ativo") else "cinza"
+        papel = "Administrador" if u.get("is_admin") else "Usuário"
+        acao_status = "desativar" if u.get("ativo") else "ativar"
+        ultimo_login = escape(str(u.get("ultimo_login") or "—"))
+
+        linhas += f"""
+        <tr>
+            <td>{escape(u.get('nome') or '')}</td>
+            <td>{escape(u.get('email') or '')}</td>
+            <td>{escape(papel)}</td>
+            <td><span class="badge {badge_cls}">{status}</span></td>
+            <td>{ultimo_login}</td>
+            <td style="white-space:nowrap;">
+                <form method="POST" action="/admin/usuarios/{u.get('id')}/status" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{escape(token_csrf)}">
+                    <button type="submit" class="btn secundario" style="padding:4px 10px;font-size:12px;margin:0;">{acao_status.capitalize()}</button>
+                </form>
+                <form method="POST" action="/admin/usuarios/{u.get('id')}/resetar-senha" style="display:inline;">
+                    <input type="hidden" name="csrf" value="{escape(token_csrf)}">
+                    <button type="submit" class="btn secundario" style="padding:4px 10px;font-size:12px;margin:0;">Resetar senha</button>
+                </form>
+            </td>
+        </tr>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Usuários · SSA Monitor</title>
+    {_JS_THEME_INIT}
+    <style>{CSS_BASE}</style>
+</head>
+<body>
+    {_topbar("/admin/usuarios", usuario)}
+    <div class="page-content">
+        <div class="page-header">
+            <h1>Usuários</h1>
+            <div class="subtitulo">Gerencie quem tem acesso ao dashboard</div>
+        </div>
+
+        {mensagem_html}
+
+        <section>
+            <h2>Novo usuário</h2>
+            <form method="POST" action="/admin/usuarios/criar" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+                <input type="hidden" name="csrf" value="{escape(token_csrf)}">
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:4px;">Nome</label>
+                    <input type="text" name="nome" required style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-1);">
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:4px;">E-mail</label>
+                    <input type="email" name="email" required style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-1);">
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:4px;">Senha temporária</label>
+                    <input type="text" name="senha_temporaria" required minlength="8" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-1);">
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);">
+                    <input type="checkbox" name="is_admin" value="1" style="width:auto;"> Administrador
+                </label>
+                <button type="submit" class="btn">Criar usuário</button>
+            </form>
+        </section>
+
+        <section>
+            <h2>Usuários cadastrados</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome</th><th>E-mail</th><th>Papel</th><th>Status</th><th>Último login</th><th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>{linhas}</tbody>
+            </table>
+        </section>
+    </div>
+    {_JS_THEME_TOGGLE}
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────
 # HTTP Handler
 # ─────────────────────────────────────────────
+log = get_logger("dashboard")
+
+
 class DashboardHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         pass
 
-    def _pedir_login(self):
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="SSA Monitor"')
+    # ── Helpers de infraestrutura ─────────────────────────────────
+    def _ip_cliente(self):
+        return self.headers.get("X-Real-IP") or self.client_address[0]
+
+    def _sessao_atual(self):
+        token = auth.extrair_cookie(self.headers.get("Cookie", ""), auth.NOME_COOKIE_SESSAO)
+        if not token:
+            return None, None
+        sessao = auth_repository.buscar_sessao_valida(token)
+        return token, sessao
+
+    def _ler_corpo_form(self):
+        tamanho = int(self.headers.get("Content-Length", 0) or 0)
+        corpo = self.rfile.read(tamanho).decode("utf-8") if tamanho else ""
+        bruto = parse_qs(corpo)
+        return {chave: valores[0] for chave, valores in bruto.items()}
+
+    def _responder_html(self, html, status=200, cookies=None):
+        self.send_response(status)
         self.send_header("Content-type", "text/html; charset=utf-8")
+        for cookie in (cookies or []):
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
-        pagina = """<!DOCTYPE html><html><head><meta charset="utf-8">
-        <title>Acesso negado</title>
-        <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#fff;margin:0}
-        .box{text-align:center}h2{margin-bottom:.5rem}p{color:#94a3b8}</style></head>
-        <body><div class="box"><h2>Acesso negado</h2><p>Informe usuario e senha para acessar o SSA Monitor.</p></div></body></html>"""
-        self.wfile.write(pagina.encode("utf-8"))
+        self.wfile.write(html.encode("utf-8"))
 
-    def _autenticar(self) -> bool:
-        auth = self.headers.get("Authorization", "")
-        if not auth.startswith("Basic "):
-            self._pedir_login()
-            return False
-        try:
-            credenciais = base64.b64decode(auth[6:]).decode("utf-8")
-            usuario, senha = credenciais.split(":", 1)
-            if usuario == DASHBOARD_USER and senha == DASHBOARD_PASS:
-                return True
-        except Exception:
-            pass
-        self._pedir_login()
-        return False
+    def _redirecionar(self, local, cookies=None):
+        self.send_response(302)
+        self.send_header("Location", local)
+        for cookie in (cookies or []):
+            self.send_header("Set-Cookie", cookie)
+        self.end_headers()
 
+    def _negar(self, status=403, mensagem="Acesso negado."):
+        self._responder_html(f"<h2>{escape(mensagem)}</h2>", status=status)
+
+    # ── GET ────────────────────────────────────────────────────────
     def do_GET(self):
-        if not self._autenticar():
-            return
         parsed = urlparse(self.path)
         rota = parsed.path
+        qs = parse_qs(parsed.query)
+        token, sessao = self._sessao_atual()
 
         try:
-            qs = parse_qs(parsed.query)
+            if rota == "/login":
+                if sessao:
+                    return self._redirecionar("/")
+                return self._responder_html(gerar_html_login())
+
+            if rota == "/logout":
+                if token:
+                    auth_repository.invalidar_sessao(token)
+                return self._redirecionar("/login", cookies=[auth.montar_cookie_expirado()])
+
+            if not sessao:
+                return self._redirecionar("/login")
+
+            if sessao.get("precisa_trocar_senha") and rota != "/trocar-senha":
+                return self._redirecionar("/trocar-senha")
+
+            if rota == "/trocar-senha":
+                token_csrf = auth.gerar_token_csrf(token)
+                return self._responder_html(
+                    gerar_html_trocar_senha(token_csrf, obrigatorio=sessao.get("precisa_trocar_senha"))
+                )
+
+            if rota == "/admin/usuarios":
+                if not sessao.get("is_admin"):
+                    return self._negar()
+                token_csrf = auth.gerar_token_csrf(token)
+                usuarios = auth_repository.listar_usuarios()
+                return self._responder_html(gerar_html_admin_usuarios(sessao, usuarios, token_csrf))
+
             if rota == "/":
-                html = gerar_html_dashboard()
-            elif rota == "/movimentacoes-hoje":
+                return self._responder_html(gerar_html_dashboard(sessao))
+
+            if rota == "/movimentacoes-hoje":
                 data_param = qs.get("data", [None])[0]
-                html = gerar_html_movimentacoes_hoje(data_param)
-            elif rota.startswith("/processo/"):
-                # /processo/<id>
+                return self._responder_html(gerar_html_movimentacoes_hoje(data_param, sessao))
+
+            if rota.startswith("/processo/"):
                 partes = rota.rstrip("/").split("/")
                 pid_str = partes[-1] if partes else ""
                 if not pid_str.isdigit():
-                    self.send_response(400)
-                    self.end_headers()
-                    return
-                html = gerar_html_detalhe_processo(int(pid_str))
+                    return self._negar(400, "Requisição inválida.")
+                html = gerar_html_detalhe_processo(int(pid_str), sessao)
                 if html is None:
-                    self.send_response(404)
-                    self.send_header("Content-type", "text/html; charset=utf-8")
-                    self.end_headers()
-                    self.wfile.write("<h2>Processo nao encontrado.</h2>".encode("utf-8"))
-                    return
-            else:
-                self.send_response(404)
-                self.send_header("Content-type", "text/html; charset=utf-8")
-                self.end_headers()
-                self.wfile.write("<h2>Pagina nao encontrada.</h2>".encode("utf-8"))
-                return
+                    return self._negar(404, "Processo não encontrado.")
+                return self._responder_html(html)
 
-            self.send_response(200)
-            self.send_header("Content-type", "text/html; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(html.encode("utf-8"))
+            return self._negar(404, "Página não encontrada.")
 
         except Exception as e:
-            self.send_response(500)
-            self.send_header("Content-type", "text/html; charset=utf-8")
-            self.end_headers()
-            erro = f"<h2>Erro interno</h2><pre>{escape(str(e))}</pre>"
-            self.wfile.write(erro.encode("utf-8"))
+            log.error(f"Erro ao processar GET {rota}: {e}")
+            self._negar(500, "Erro interno. Consulte os logs do servidor.")
+
+    # ── POST ───────────────────────────────────────────────────────
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        rota = parsed.path
+        ip = self._ip_cliente()
+
+        try:
+            dados = self._ler_corpo_form()
+
+            if rota == "/login":
+                return self._processar_login(dados, ip)
+
+            token, sessao = self._sessao_atual()
+            if not sessao:
+                return self._redirecionar("/login")
+
+            if not auth.csrf_valido(token, dados.get("csrf", "")):
+                return self._negar(400, "Sessão expirada, recarregue a página e tente novamente.")
+
+            if rota == "/trocar-senha":
+                return self._processar_trocar_senha(dados, sessao)
+
+            if rota.startswith("/admin/usuarios"):
+                if not sessao.get("is_admin"):
+                    return self._negar()
+                return self._processar_admin_usuarios(rota, dados, token, sessao)
+
+            return self._negar(404, "Página não encontrada.")
+
+        except Exception as e:
+            log.error(f"Erro ao processar POST {rota}: {e}")
+            self._negar(500, "Erro interno. Consulte os logs do servidor.")
+
+    # ── Ações de POST ────────────────────────────────────────────────
+    def _processar_login(self, dados, ip):
+        email = (dados.get("email") or "").strip().lower()
+        senha = dados.get("senha") or ""
+
+        if auth.limite_tentativas_excedido(email, ip):
+            return self._responder_html(
+                gerar_html_login(erro="Muitas tentativas de login. Aguarde alguns minutos e tente novamente."),
+                status=429,
+            )
+
+        usuario, erro = auth.autenticar_usuario(email, senha, ip)
+
+        if erro:
+            return self._responder_html(gerar_html_login(erro=erro), status=401)
+
+        token = auth.gerar_token_sessao()
+        auth_repository.criar_sessao(token, usuario["id"], ip)
+        auth_repository.atualizar_ultimo_login(usuario["id"])
+
+        destino = "/trocar-senha" if usuario.get("precisa_trocar_senha") else "/"
+        self._redirecionar(destino, cookies=[auth.montar_cookie_sessao(token)])
+
+    def _processar_trocar_senha(self, dados, sessao):
+        usuario = auth_repository.buscar_usuario_por_id(sessao["usuario_id"])
+        senha_atual = dados.get("senha_atual") or ""
+        senha_nova = dados.get("senha_nova") or ""
+        senha_confirma = dados.get("senha_confirma") or ""
+        token_csrf = auth.gerar_token_csrf(auth.extrair_cookie(self.headers.get("Cookie", ""), auth.NOME_COOKIE_SESSAO))
+
+        if not auth.verificar_senha(senha_atual, usuario["senha_hash"]):
+            return self._responder_html(
+                gerar_html_trocar_senha(token_csrf, erro="Senha atual incorreta.", obrigatorio=sessao.get("precisa_trocar_senha")),
+                status=400,
+            )
+
+        if len(senha_nova) < 8 or senha_nova != senha_confirma:
+            return self._responder_html(
+                gerar_html_trocar_senha(token_csrf, erro="As senhas novas não conferem ou têm menos de 8 caracteres.", obrigatorio=sessao.get("precisa_trocar_senha")),
+                status=400,
+            )
+
+        auth_repository.atualizar_senha(usuario["id"], auth.hash_senha(senha_nova), precisa_trocar_senha=False)
+        self._redirecionar("/")
+
+    def _processar_admin_usuarios(self, rota, dados, token, sessao):
+        token_csrf = auth.gerar_token_csrf(token)
+
+        if rota == "/admin/usuarios/criar":
+            nome = (dados.get("nome") or "").strip()
+            email = (dados.get("email") or "").strip().lower()
+            senha_temp = dados.get("senha_temporaria") or ""
+            is_admin = dados.get("is_admin") == "1"
+
+            mensagem = f"Usuário {email} criado com sucesso."
+            if not nome or not email or len(senha_temp) < 8:
+                mensagem = "Preencha nome, e-mail e uma senha temporária com pelo menos 8 caracteres."
+            else:
+                try:
+                    auth_repository.criar_usuario(nome, email, auth.hash_senha(senha_temp), is_admin=is_admin)
+                except Exception:
+                    mensagem = "Não foi possível criar o usuário — verifique se o e-mail já está cadastrado."
+
+            usuarios = auth_repository.listar_usuarios()
+            return self._responder_html(gerar_html_admin_usuarios(sessao, usuarios, token_csrf, mensagem=mensagem))
+
+        partes = rota.rstrip("/").split("/")
+        # ["", "admin", "usuarios", "<id>", "<acao>"]
+        if len(partes) == 5 and partes[3].isdigit():
+            usuario_id = int(partes[3])
+            acao = partes[4]
+            alvo = auth_repository.buscar_usuario_por_id(usuario_id)
+
+            if not alvo:
+                return self._negar(404, "Usuário não encontrado.")
+
+            mensagem = None
+
+            if acao == "status":
+                auth_repository.atualizar_status(usuario_id, not alvo.get("ativo"))
+                if alvo.get("ativo"):
+                    auth_repository.invalidar_sessoes_do_usuario(usuario_id)
+                mensagem = f"Usuário {alvo['email']} atualizado."
+
+            elif acao == "resetar-senha":
+                nova_senha = auth.gerar_token_sessao()[:12]
+                auth_repository.atualizar_senha(usuario_id, auth.hash_senha(nova_senha), precisa_trocar_senha=True)
+                auth_repository.invalidar_sessoes_do_usuario(usuario_id)
+                mensagem = f"Nova senha temporária para {alvo['email']}: {nova_senha} (repasse com segurança — não fica salva em lugar nenhum)."
+
+            usuarios = auth_repository.listar_usuarios()
+            return self._responder_html(gerar_html_admin_usuarios(sessao, usuarios, token_csrf, mensagem=mensagem))
+
+        return self._negar(404, "Ação inválida.")
 
 
 def iniciar_dashboard():

@@ -51,8 +51,10 @@ DB_USER=ssa_user
 DB_PASSWORD=SENHA_SEGURA
 DB_NAME=ssa_monitor_processos
 CAPTCHA_API_KEY=SUA_CHAVE_2CAPTCHA
-DASHBOARD_HOST=0.0.0.0
+DASHBOARD_HOST=127.0.0.1   # NUNCA 0.0.0.0 — só o nginx local acessa
 DASHBOARD_PORT=8000
+SESSION_SECRET=...         # python -c "import secrets; print(secrets.token_hex(32))"
+ENCRYPTION_KEY=...         # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
 ---
@@ -87,13 +89,23 @@ sudo tail -f /var/log/ssa-monitor/monitor.log
 
 ---
 
-## 6. Configurar Nginx (acesso pelo domínio)
+## 6. Configurar Nginx (acesso pelo domínio, HTTPS obrigatório + IP do escritório)
+
+Este sistema é de uso **exclusivo do escritório** — o dashboard nunca deve
+ficar acessível para qualquer IP da internet. O `deploy/nginx-ssa.conf` já
+vem com bloco de allowlist de IP e redirect HTTPS; siga a ordem abaixo.
 
 ```bash
 sudo apt-get install -y nginx
 sudo cp /opt/ssa-monitor/deploy/nginx-ssa.conf /etc/nginx/sites-available/ssa-monitor
-# Edite o server_name com seu domínio:
+
+# 1. Edite: server_name (seu domínio) e a(s) linha(s) "allow" com o IP
+#    público do escritório (descubra com: curl ifconfig.me).
+# 2. Antes de ter certificado, comente o bloco "server { listen 443 ... }"
+#    inteiro e troque o "return 301 ..." do bloco :80 por um location /
+#    com proxy_pass, só para o certbot conseguir validar o domínio.
 sudo nano /etc/nginx/sites-available/ssa-monitor
+
 sudo ln -s /etc/nginx/sites-available/ssa-monitor /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
@@ -104,14 +116,20 @@ sudo apt-get install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d seu-dominio.com.br
 ```
 
+Depois de emitido o certificado, restaure o `nginx-ssa.conf` original (redirect
+80→443 + bloco 443 com a allowlist de IP) e recarregue: `sudo nginx -t && sudo systemctl reload nginx`.
+
 ---
 
-## 7. Abrir porta no firewall (se necessário)
+## 7. Firewall — só 80/443, nunca a porta 8000 direto
+
+A porta 8000 (dashboard) só deve ser alcançável via `127.0.0.1` (nginx local).
+**Não libere a porta 8000 no firewall** — isso burlaria o HTTPS e a
+restrição de IP configurados no nginx.
 
 ```bash
-sudo ufw allow 8000/tcp   # acesso direto (sem nginx)
-sudo ufw allow 80/tcp     # com nginx HTTP
-sudo ufw allow 443/tcp    # com nginx HTTPS
+sudo ufw allow 80/tcp     # nginx HTTP (só usado para redirect + certbot)
+sudo ufw allow 443/tcp    # nginx HTTPS — acesso real ao dashboard
 sudo ufw enable
 ```
 

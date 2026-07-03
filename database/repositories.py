@@ -1,5 +1,6 @@
 import re
 from database.connection import criar_conexao
+from utils.crypto_utils import criptografar, descriptografar
 
 _PATTERN_HORARIO = re.compile(r'\d{2}/\d{2}/\d{4}\s*(\d{2}:\d{2}:\d{2})')
 
@@ -121,6 +122,11 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
         dados["orgao_id"], dados["numero_processo"]
     )
 
+    # login_acesso/senha_acesso são credenciais dos portais dos órgãos —
+    # nunca gravar em texto puro no banco.
+    login_acesso_criptografado = criptografar(dados.get("login_acesso") or dados.get("Login"))
+    senha_acesso_criptografada = criptografar(dados.get("senha_acesso") or dados.get("Senha"))
+
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
@@ -145,8 +151,8 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
             dados["exercicio"],
             dados["codigo"],
             dados["acesso"],
-            dados.get("login_acesso") or dados.get("Login"),
-            dados.get("senha_acesso") or dados.get("Senha"),
+            login_acesso_criptografado,
+            senha_acesso_criptografada,
             dados["empresa"],
             processo_existente["id"]
         ))
@@ -170,8 +176,8 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
             dados["numero_processo"],
             dados["codigo"],
             dados["acesso"],
-            dados.get("login_acesso") or dados.get("Login"),
-            dados.get("senha_acesso") or dados.get("Senha"),
+            login_acesso_criptografado,
+            senha_acesso_criptografada,
             dados["empresa"]
         ))
 
@@ -223,6 +229,12 @@ def listar_processos_ativos_com_orgao():
 
     cursor.close()
     conexao.close()
+
+    # Decripta aqui — único ponto de onde os robôs recebem essas credenciais.
+    for processo in dados:
+        processo["login_acesso"] = descriptografar(processo.get("login_acesso"))
+        processo["senha_acesso"] = descriptografar(processo.get("senha_acesso"))
+
     return dados
 
 

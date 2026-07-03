@@ -9,7 +9,9 @@ User=ssa
 Group=ssa
 WorkingDirectory=/opt/ssa-monitor
 EnvironmentFile=/opt/ssa-monitor/.env
-Environment=DASHBOARD_HOST=0.0.0.0
+# 127.0.0.1: só o nginx local (proxy_pass) acessa o dashboard — nunca expor
+# a porta 8000 direto para a internet.
+Environment=DASHBOARD_HOST=127.0.0.1
 Environment=DASHBOARD_PORT=8000
 ExecStart=/opt/ssa-monitor/.venv/bin/python -m dashboard.app
 Restart=always
