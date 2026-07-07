@@ -1,12 +1,27 @@
 from playwright.async_api import async_playwright
 import re
 import asyncio
+from pathlib import Path
 
 from services.captcha_api_client import (
     enviar_captcha_para_api,
     consultar_resultado_captcha_api,
 )
 from utils.logger import get_logger
+
+# Limita consultas simultaneas ao mesmo servidor para evitar bloqueio por anti-bot.
+# pinhais.atende.net e araucaria.atende.net sao o mesmo backend IPM.
+_semaphore = asyncio.Semaphore(2)
+
+# Sessao salva pelo setup_session_pinhais.py (cookies de usuario autenticado).
+# Sem esse arquivo o formulario de consulta exige login e nao carrega.
+SESSION_FILE = Path(__file__).parent / "session_state.json"
+
+_UA_CHROME136 = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/136.0.0.0 Safari/537.36"
+)
 
 log = get_logger("atendenet")
 
@@ -20,13 +35,14 @@ SITEKEY_PADRAO_PINHAIS = "6LenD30sAAAAADTdG6GJYoAxOIZy9SEYg1VSY24j"
 SITEKEY_MODAL_PINHAIS = "6Le9DX0sAAAAAM10_leN11PLggPbvzjQKcpm3VFW"
 
 
-async def resolver_captcha(site_key, url):
-    log.info("Enviando captcha para 2captcha...")
+async def resolver_captcha(site_key, url, method="userrecaptcha"):
+    log.info(f"Enviando captcha para 2captcha (method={method})...")
 
     resultado_envio = await enviar_captcha_para_api(
         processo={},
         sitekey=site_key,
         url=url,
+        method=method,
     )
 
     if resultado_envio.get("status") != "ENVIADO_API":
@@ -88,6 +104,10 @@ async def injetar_token_recaptcha(frame_ou_page, token):
 class RobotAtendeNetV2:
 
     async def consultar_processo(self, processo):
+        async with _semaphore:
+            return await self._consultar_processo_impl(processo)
+
+    async def _consultar_processo_impl(self, processo):
 
         url = (
             processo.get("acesso")
@@ -100,14 +120,54 @@ class RobotAtendeNetV2:
         async with async_playwright() as p:
 
             browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
+
+            ctx_kwargs = {"user_agent": _UA_CHROME136}
+            if SESSION_FILE.exists():
+                ctx_kwargs["storage_state"] = str(SESSION_FILE)
+                log.info("Sessao autenticada carregada (session_state.json)")
+            else:
+                log.warning(
+                    "session_state.json nao encontrado — "
+                    "execute robots/atendenet_v2/setup_session_pinhais.py para criar a sessao"
+                )
+
+            context = await browser.new_context(**ctx_kwargs)
+            page = await context.new_page()
 
             await page.goto(url)
+            await page.wait_for_timeout(3000)
 
-            # 1. COOKIES
+            # 1a. ALERTA DE CAPTCHA (IP bloqueado por atividade incomum)
+            # Aparece quando o servidor detecta multiplas requisicoes automatizadas.
+            # Precisa ser dispensado antes de qualquer outro clique.
             try:
-                await page.click("button:has-text('Aceitar')", timeout=5000)
+                await page.click("button:has-text('Ok')", timeout=3000, force=True)
+                log.info("Alerta de captcha dispensado")
+                await page.wait_for_timeout(1000)
+            except Exception:
+                log.debug("Alerta de captcha nao apareceu")
+
+            # 1b. NAVEGADOR INCOMPATIVEL — clicado ANTES dos cookies.
+            # O banner de cookies pode desmontar o bloqueador do DOM ao ser aceito,
+            # o que faria o botao "Continuar" desaparecer. Por isso clicar aqui primeiro.
+            # Clicar "Continuar" faz um POST que autoriza a sessao no servidor,
+            # liberando o iframe do formulario. force=True ignora overlays.
+            try:
+                await page.click(
+                    "button:has-text('Continuar o acesso com meu Navegador')",
+                    timeout=8000,
+                    force=True,
+                )
+                log.info("Aviso de navegador incompativel aceito")
+                await page.wait_for_timeout(5000)
+            except Exception:
+                log.debug("Aviso de navegador incompativel nao apareceu")
+
+            # 1c. COOKIES
+            try:
+                await page.click("button:has-text('Aceitar')", timeout=5000, force=True)
                 log.info("Banner de cookies aceito")
+                await page.wait_for_timeout(1500)
             except Exception:
                 log.debug("Banner de cookies nao apareceu ou ja estava fechado")
 
@@ -144,17 +204,23 @@ class RobotAtendeNetV2:
                 await page.wait_for_timeout(2000)
 
             if not frame:
+                # Verifica se iframe existe mas mostra modal de login (sessao expirada)
+                for f in page.frames:
+                    if "embed/data" in f.url:
+                        try:
+                            html_f = await f.content()
+                            if "acessar_conta" in html_f or "cidadao/acesso" in html_f:
+                                raise Exception(
+                                    "SESSAO_EXPIRADA: execute "
+                                    "robots/atendenet_v2/setup_session_pinhais.py"
+                                )
+                        except Exception as exc:
+                            if "SESSAO_EXPIRADA" in str(exc):
+                                raise
+                        break
                 raise Exception("Iframe com formulario nao encontrado")
 
             log.info("Iframe do formulario localizado")
-
-            inputs = frame.locator(selector)
-            count = await inputs.count()
-
-            if count < 2:
-                raise Exception(f"Inputs do formulario nao carregaram. Total: {count}")
-
-            inputs = frame.locator(selector)
 
             # 3. PREPARAR DADOS
             numero = processo.get("numero_processo")
@@ -165,49 +231,129 @@ class RobotAtendeNetV2:
 
             log.info(f"Numero: {numero_base} | Ano: {ano} | Codigo: {codigo}")
 
-            # 4. PREENCHER FORMULARIO
-            inputs = frame.locator(selector)
-            count = await inputs.count()
+            # 4. DETECTAR TIPO DE FORMULARIO E PREENCHER
+            # Formulário autenticado: usa filtros de busca com aria-description.
+            # Formulário anônimo (legado): usa preenchimento posicional.
+            SEL_CAMPO_NUMERO = "input[name='campo01'][aria-description='campo numérico']"
+            SEL_CAMPO_ANO = "input[name='campo01'][aria-description='campo ano']"
 
-            if count < 2:
-                raise Exception(f"Inputs nao encontrados. Total: {count}")
+            campo_numero = frame.locator(SEL_CAMPO_NUMERO).first
+            is_form_autenticado = await campo_numero.count() > 0
 
-            numero_input = inputs.nth(0)
-            codigo_input = inputs.nth(count - 1)
+            if is_form_autenticado:
+                log.info("Formulario autenticado detectado (filtros de busca)")
 
-            await numero_input.fill(numero_base)
+                await campo_numero.fill(numero_base, force=True)
+                log.info(f"Filtro Numero preenchido: {numero_base}")
 
-            if count > 2:
-                await inputs.nth(1).fill(str(ano))
+                campo_ano = frame.locator(SEL_CAMPO_ANO).first
+                if await campo_ano.count() > 0 and ano:
+                    await campo_ano.fill(str(ano), force=True)
+                    log.info(f"Filtro Ano preenchido: {ano}")
 
-            await codigo_input.fill(codigo)
+            else:
+                log.info("Formulario anonimo detectado (preenchimento posicional)")
+                selector_fill = (
+                    "input:visible"
+                    ":not([type='hidden']):not([type='submit']):not([type='button'])"
+                    ":not([type='checkbox']):not([type='radio'])"
+                    ":not([id*='goog']):not([name='g-recaptcha-response'])"
+                )
+                inputs = frame.locator(selector_fill)
+                count = await inputs.count()
+
+                if count < 2:
+                    raise Exception(f"Inputs visiveis nao carregaram. Total: {count}")
+
+                numero_input = inputs.nth(0)
+                codigo_input = inputs.nth(count - 1)
+
+                await numero_input.fill(numero_base)
+                if count > 2:
+                    await inputs.nth(1).fill(str(ano))
+                await codigo_input.fill(codigo)
 
             log.info("Formulario preenchido")
-
-            await numero_input.click()
             await page.mouse.click(0, 0)
+            await page.wait_for_timeout(2000)
+
+            # 5. CAPTCHA (apenas no formulario anonimo)
+            if not is_form_autenticado:
+                site_key = await capturar_sitekey(frame)
+                if not site_key:
+                    raise Exception("Sitekey do formulario nao encontrada")
+                log.info(f"Sitekey do formulario: {site_key}")
+                token = await resolver_captcha(site_key, url)
+                await injetar_token_recaptcha(frame, token)
+                log.info("Token do formulario injetado")
+                await page.wait_for_timeout(2000)
+            else:
+                site_key = await capturar_sitekey(frame)
+                if site_key:
+                    log.info(f"Captcha detectado no formulario autenticado: {site_key}")
+                    token = await resolver_captcha(site_key, url)
+                    await injetar_token_recaptcha(frame, token)
+                    await page.wait_for_timeout(2000)
+                else:
+                    log.info("Sem captcha no formulario autenticado")
+
+            # 6. SUBMIT
+            # Autenticado: <input type='button' name='consultar'> (IPM AtendNet filtros).
+            # Anonimo: <button name='confirmar'>.
+            submit_feito = False
+            btn_selectors = (
+                [
+                    "input[name='consultar']",
+                    "input[type='button'][name='consultar']",
+                    "button[type='submit']",
+                ]
+                if is_form_autenticado
+                else [
+                    "button[name='confirmar']",
+                    "input[name='confirmar']",
+                    "button[type='submit']",
+                    "input[type='submit']",
+                ]
+            )
+            for btn_sel in btn_selectors:
+                try:
+                    btn = frame.locator(btn_sel).first
+                    if await btn.count() > 0:
+                        await btn.click(force=True)
+                        submit_feito = True
+                        log.info(f"Consulta enviada via: {btn_sel}")
+                        break
+                except Exception:
+                    pass
+
+            if not submit_feito:
+                raise Exception("Botao de submit nao encontrado no formulario")
 
             await page.wait_for_timeout(5000)
 
-            # 5. CAPTURAR SITEKEY (captcha do formulario)
-            site_key = await capturar_sitekey(frame)
+            # 7. SELECIONAR PROCESSO NA LISTA (formulario autenticado)
+            # Após "Consultar", aparece lista de resultados. Clicar no processo correto.
+            if is_form_autenticado:
+                selecionado = False
+                try:
+                    result = frame.locator(f"text={numero_base}").first
+                    if await result.count() > 0:
+                        await result.click(force=True)
+                        selecionado = True
+                        log.info(f"Processo {numero_base} selecionado na lista")
+                        await page.wait_for_timeout(3000)
+                except Exception as e:
+                    log.debug(f"Selecao por texto falhou: {e}")
 
-            if not site_key:
-                raise Exception("Sitekey do formulario nao encontrada")
-
-            log.info(f"Sitekey do formulario: {site_key}")
-
-            # 6. RESOLVER CAPTCHA DO FORMULARIO
-            token = await resolver_captcha(site_key, url)
-
-            await injetar_token_recaptcha(frame, token)
-            log.info("Token do formulario injetado")
-
-            await page.wait_for_timeout(2000)
-
-            # 7. SUBMIT
-            await frame.locator("button[name='confirmar']").click(force=True)
-            log.info("Consulta enviada")
+                if not selecionado:
+                    try:
+                        row = frame.locator(f"tr:has-text('{numero_base}')").first
+                        if await row.count() > 0:
+                            await row.click(force=True)
+                            log.info(f"Linha com {numero_base} clicada")
+                            await page.wait_for_timeout(3000)
+                    except Exception as e:
+                        log.debug(f"Selecao por tr falhou: {e}")
 
             # 8. RESULTADO — extrai da aba "Linha do Tempo"
             # Abordagem: captura o texto completo da aba e divide por
@@ -294,6 +440,7 @@ class RobotAtendeNetV2:
     async def _resolver_modal_verificacao_acesso(self, page, url):
         """
         Detecta e resolve o modal "Verificacao de acesso".
+        Suporta reCAPTCHA v2 (Google) e Cloudflare Turnstile.
         Retorna True se o modal foi detectado e o captcha foi aceito,
         False se o modal nao apareceu.
         """
@@ -314,16 +461,32 @@ class RobotAtendeNetV2:
 
             log.info(f"Modal de verificacao detectado no frame: {frame_modal.url}")
 
-            # Busca sitekey pelo anchor iframe com size!=invisible.
-            # querySelector('[data-sitekey]') retorna o badge (errado).
+            # ── Detecta tipo de captcha ──────────────────────────────────────
+            # Prioridade: Cloudflare Turnstile (mudanca do site em ~01/07/2026)
+            # Fallback: reCAPTCHA v2 (comportamento anterior)
+
+            captcha_method = "userrecaptcha"
             site_key = None
-            for child in frame_modal.child_frames:
-                if "api2/anchor" in child.url and "size=invisible" not in child.url:
-                    m = re.search(r"[?&]k=([^&]+)", child.url)
+
+            # 1. Procura frame do Cloudflare Turnstile em todos os frames da pagina
+            for f in page.frames:
+                if "challenges.cloudflare.com" in f.url and "turnstile" in f.url:
+                    m = re.search(r"/([0-9a-zA-Z_-]{20,})/", f.url)
                     if m:
                         site_key = m.group(1)
-                        log.info(f"Sitekey do modal (anchor normal): {site_key}")
+                        captcha_method = "turnstile"
+                        log.info(f"Cloudflare Turnstile detectado — sitekey: {site_key}")
                         break
+
+            # 2. Fallback: reCAPTCHA v2 (anchor iframe do Google)
+            if not site_key:
+                for child in frame_modal.child_frames:
+                    if "api2/anchor" in child.url and "size=invisible" not in child.url:
+                        m = re.search(r"[?&]k=([^&]+)", child.url)
+                        if m:
+                            site_key = m.group(1)
+                            log.info(f"reCAPTCHA v2 detectado (child frame) — sitekey: {site_key}")
+                            break
 
             if not site_key:
                 for f in page.frames:
@@ -331,76 +494,63 @@ class RobotAtendeNetV2:
                         m = re.search(r"[?&]k=([^&]+)", f.url)
                         if m:
                             site_key = m.group(1)
-                            log.info(f"Sitekey do modal (page frames): {site_key}")
+                            log.info(f"reCAPTCHA v2 detectado (page frames) — sitekey: {site_key}")
                             break
 
             if not site_key:
-                log.warning("Anchor normal nao detectado — usando SITEKEY_MODAL_PINHAIS como fallback")
+                log.warning("Tipo de captcha nao detectado — usando SITEKEY_MODAL_PINHAIS como fallback")
                 site_key = SITEKEY_MODAL_PINHAIS
 
-            token = await resolver_captcha(site_key, url)
+            token = await resolver_captcha(site_key, url, method=captcha_method)
 
-            await injetar_token_recaptcha(frame_modal, token)
-            log.info("Token do modal injetado")
+            # ── Injeta token conforme o tipo de captcha ──────────────────────
+            if captcha_method == "turnstile":
+                await self._injetar_token_turnstile(frame_modal, token)
+            else:
+                await injetar_token_recaptcha(frame_modal, token)
+                log.info("Token reCAPTCHA do modal injetado")
 
-            # Disparo unico para evitar race condition com tokens duplicados.
-            # Patcha grecaptcha.getResponse e chama onValidaCaptchaAcessoSistema
-            # uma vez, o que dispara o AJAX de validacao server-side.
-            try:
-                cb_result = await frame_modal.evaluate(
-                    """
-                    (token) => {
-                        const results = [];
-
-                        try {
-                            if (window.grecaptcha && typeof window.grecaptcha.getResponse === 'function') {
-                                window.grecaptcha.getResponse = function() { return token; };
-                                results.push('getResponse_patchado');
-                            }
-                            if (window.grecaptcha && window.grecaptcha.enterprise &&
-                                typeof window.grecaptcha.enterprise.getResponse === 'function') {
-                                window.grecaptcha.enterprise.getResponse = function() { return token; };
-                            }
-                        } catch(e) { results.push('err_patch:' + e.message); }
-
-                        try {
-                            const cfg = window.__user_access_config;
-                            results.push('uac:' + (cfg ? JSON.stringify({
-                                rotina: cfg.rotina, acao: cfg.acao
-                            }) : 'undefined'));
-                        } catch(e) {}
-
-                        try {
-                            const comp = window.componente;
-                            const tela = comp && comp["1211"] && comp["1211"]["102"] &&
-                                         comp["1211"]["102"]["1"] &&
-                                         comp["1211"]["102"]["1"]["tela_acesso_captcha"] &&
-                                         comp["1211"]["102"]["1"]["tela_acesso_captcha"]["tela_acesso_captcha"];
-                            const rec  = comp && comp["1211"] && comp["1211"]["102"] &&
-                                         comp["1211"]["102"]["1"] &&
-                                         comp["1211"]["102"]["1"]["tela_acesso_captcha"] &&
-                                         comp["1211"]["102"]["1"]["tela_acesso_captcha"]["recaptcha"];
-
-                            if (tela && rec && typeof window.onValidaCaptchaAcessoSistema === 'function') {
-                                window.onValidaCaptchaAcessoSistema.apply(rec, [tela]);
-                                results.push('onValidaCaptcha_ok');
-                            } else {
-                                results.push('fn_nao_encontrada');
-                            }
-                        } catch(e) { results.push('err_call:' + e.message); }
-
-                        return results.join(' | ');
-                    }
-                    """,
-                    token,
-                )
-                log.debug(f"Callback modal: {cb_result}")
-            except Exception as e:
-                log.warning(f"Nao foi possivel disparar callback do modal: {e}")
+                # Disparo do callback IPM para reCAPTCHA (comportamento anterior)
+                try:
+                    cb_result = await frame_modal.evaluate(
+                        """
+                        (token) => {
+                            const results = [];
+                            try {
+                                if (window.grecaptcha && typeof window.grecaptcha.getResponse === 'function') {
+                                    window.grecaptcha.getResponse = function() { return token; };
+                                    results.push('getResponse_patchado');
+                                }
+                            } catch(e) { results.push('err_patch:' + e.message); }
+                            try {
+                                const comp = window.componente;
+                                const tela = comp && comp["1211"] && comp["1211"]["102"] &&
+                                             comp["1211"]["102"]["1"] &&
+                                             comp["1211"]["102"]["1"]["tela_acesso_captcha"] &&
+                                             comp["1211"]["102"]["1"]["tela_acesso_captcha"]["tela_acesso_captcha"];
+                                const rec  = comp && comp["1211"] && comp["1211"]["102"] &&
+                                             comp["1211"]["102"]["1"] &&
+                                             comp["1211"]["102"]["1"]["tela_acesso_captcha"] &&
+                                             comp["1211"]["102"]["1"]["tela_acesso_captcha"]["recaptcha"];
+                                if (tela && rec && typeof window.onValidaCaptchaAcessoSistema === 'function') {
+                                    window.onValidaCaptchaAcessoSistema.apply(rec, [tela]);
+                                    results.push('onValidaCaptcha_ok');
+                                } else {
+                                    results.push('fn_nao_encontrada');
+                                }
+                            } catch(e) { results.push('err_call:' + e.message); }
+                            return results.join(' | ');
+                        }
+                        """,
+                        token,
+                    )
+                    log.debug(f"Callback reCAPTCHA modal: {cb_result}")
+                except Exception as e:
+                    log.warning(f"Nao foi possivel disparar callback reCAPTCHA do modal: {e}")
 
             # Aguarda o modal fechar sozinho apos validacao AJAX bem-sucedida.
             modal_fechou = False
-            for tentativa in range(12):
+            for tentativa in range(15):
                 await page.wait_for_timeout(1000)
                 try:
                     html_agora = await frame_modal.content()
@@ -414,7 +564,7 @@ class RobotAtendeNetV2:
                     break
 
             if not modal_fechou:
-                log.warning("Modal ainda aberto apos 12s — captcha pode ter sido rejeitado pelo servidor")
+                log.warning("Modal ainda aberto apos 15s — captcha pode ter sido rejeitado pelo servidor")
 
             await page.wait_for_timeout(1000)
             return True
@@ -422,6 +572,62 @@ class RobotAtendeNetV2:
         except Exception as e:
             log.error(f"Erro ao resolver modal de verificacao: {e}")
             return False
+
+    async def _injetar_token_turnstile(self, frame_modal, token):
+        """
+        Injeta token do Cloudflare Turnstile e dispara callbacks do IPM.
+        O Turnstile usa cf-turnstile-response (diferente do g-recaptcha-response).
+        """
+        log.info("Injetando token Turnstile no modal...")
+
+        try:
+            cb_result = await frame_modal.evaluate(
+                """
+                (token) => {
+                    const results = [];
+
+                    // Injeta no campo oculto do Turnstile
+                    document.querySelectorAll('[name="cf-turnstile-response"]').forEach(el => {
+                        el.value = token;
+                        results.push('cf-turnstile-response injetado');
+                    });
+
+                    // Tenta disparar callback declarado via data-callback
+                    document.querySelectorAll('[data-callback]').forEach(el => {
+                        const cb = el.getAttribute('data-callback');
+                        if (cb && typeof window[cb] === 'function') {
+                            try { window[cb](token); results.push('data-callback:' + cb); }
+                            catch(e) { results.push('err_cb:' + e.message); }
+                        }
+                    });
+
+                    // Tenta callback IPM especifico para Turnstile
+                    try {
+                        const comp = window.componente;
+                        const tela = comp && comp["1211"] && comp["1211"]["102"] &&
+                                     comp["1211"]["102"]["1"] &&
+                                     comp["1211"]["102"]["1"]["tela_acesso_captcha"] &&
+                                     comp["1211"]["102"]["1"]["tela_acesso_captcha"]["tela_acesso_captcha"];
+                        const rec  = comp && comp["1211"] && comp["1211"]["102"] &&
+                                     comp["1211"]["102"]["1"] &&
+                                     comp["1211"]["102"]["1"]["tela_acesso_captcha"] &&
+                                     comp["1211"]["102"]["1"]["tela_acesso_captcha"]["recaptcha"];
+                        if (tela && rec && typeof window.onValidaCaptchaAcessoSistema === 'function') {
+                            window.onValidaCaptchaAcessoSistema.apply(rec, [tela]);
+                            results.push('onValidaCaptcha_ok');
+                        } else {
+                            results.push('ipm_fn_nao_encontrada');
+                        }
+                    } catch(e) { results.push('err_ipm:' + e.message); }
+
+                    return results.join(' | ');
+                }
+                """,
+                token,
+            )
+            log.info(f"Injecao Turnstile: {cb_result}")
+        except Exception as e:
+            log.warning(f"Erro ao injetar token Turnstile: {e}")
 
 
 async def consultar_processo_pinhais(processo):

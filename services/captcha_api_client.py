@@ -21,7 +21,7 @@ def api_configurada():
     return all([CAPTCHA_API_KEY, CAPTCHA_API_ENVIAR_URL, CAPTCHA_API_RESULTADO_URL])
 
 
-async def enviar_captcha_para_api(processo=None, caminho_imagem=None, sitekey=None, url=None):
+async def enviar_captcha_para_api(processo=None, caminho_imagem=None, sitekey=None, url=None, method="userrecaptcha"):
     if not api_configurada():
         log.warning("API de captcha nao configurada — verifique as variaveis de ambiente")
         return {
@@ -32,13 +32,22 @@ async def enviar_captcha_para_api(processo=None, caminho_imagem=None, sitekey=No
 
     pageurl = url or (processo.get("acesso") if processo else None)
 
-    dados = {
-        "key": CAPTCHA_API_KEY,
-        "method": "userrecaptcha",
-        "googlekey": sitekey,
-        "pageurl": pageurl,
-        "json": "0",
-    }
+    if method == "turnstile":
+        dados = {
+            "key": CAPTCHA_API_KEY,
+            "method": "turnstile",
+            "sitekey": sitekey,
+            "pageurl": pageurl,
+            "json": "0",
+        }
+    else:
+        dados = {
+            "key": CAPTCHA_API_KEY,
+            "method": "userrecaptcha",
+            "googlekey": sitekey,
+            "pageurl": pageurl,
+            "json": "0",
+        }
 
     async with httpx.AsyncClient(timeout=60) as client:
         resposta = await client.post(CAPTCHA_API_ENVIAR_URL, data=dados)
