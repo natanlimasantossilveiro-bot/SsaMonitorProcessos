@@ -91,6 +91,19 @@ def atualizar_status(usuario_id, ativo):
     conexao.close()
 
 
+def excluir_usuario(usuario_id):
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    cursor.execute("DELETE FROM sessoes WHERE usuario_id = %s;", (usuario_id,))
+    cursor.execute("UPDATE log_acessos SET usuario_id = NULL WHERE usuario_id = %s;", (usuario_id,))
+    cursor.execute("DELETE FROM usuarios WHERE id = %s;", (usuario_id,))
+
+    conexao.commit()
+    cursor.close()
+    conexao.close()
+
+
 def atualizar_ultimo_login(usuario_id):
     conexao = criar_conexao()
     cursor = conexao.cursor()

@@ -1269,6 +1269,7 @@ def gerar_html_admin_usuarios(usuario, usuarios, token_csrf, mensagem=None):
         if mensagem else ""
     )
 
+    eu_id = usuario.get("usuario_id")
     linhas = ""
     for u in usuarios:
         status = "Ativo" if u.get("ativo") else "Desativado"
@@ -1276,6 +1277,20 @@ def gerar_html_admin_usuarios(usuario, usuarios, token_csrf, mensagem=None):
         papel = "Administrador" if u.get("is_admin") else "Usuário"
         acao_status = "desativar" if u.get("ativo") else "ativar"
         ultimo_login = escape(str(u.get("ultimo_login") or "—"))
+        proprio = u.get("id") == eu_id
+
+        btn_excluir = ""
+        if not proprio:
+            nome_u = escape(u.get("nome") or u.get("email") or "este usuário")
+            btn_excluir = f"""
+                <form method="POST" action="/admin/usuarios/{u.get('id')}/excluir" style="display:inline;"
+                      onsubmit="return confirm('Excluir {nome_u}? Esta ação é permanente e não pode ser desfeita.');">
+                    <input type="hidden" name="csrf" value="{escape(token_csrf)}">
+                    <button type="submit" class="btn secundario"
+                            style="padding:4px 10px;font-size:12px;margin:0;color:#dc2626;border-color:#fca5a5;">
+                        Excluir
+                    </button>
+                </form>"""
 
         linhas += f"""
         <tr>
@@ -1293,6 +1308,7 @@ def gerar_html_admin_usuarios(usuario, usuarios, token_csrf, mensagem=None):
                     <input type="hidden" name="csrf" value="{escape(token_csrf)}">
                     <button type="submit" class="btn secundario" style="padding:4px 10px;font-size:12px;margin:0;">Resetar senha</button>
                 </form>
+                {btn_excluir}
             </td>
         </tr>"""
 
@@ -1583,6 +1599,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 auth_repository.atualizar_senha(usuario_id, auth.hash_senha(nova_senha), precisa_trocar_senha=True)
                 auth_repository.invalidar_sessoes_do_usuario(usuario_id)
                 mensagem = f"Nova senha temporária para {alvo['email']}: {nova_senha} (repasse com segurança — não fica salva em lugar nenhum)."
+
+            elif acao == "excluir":
+                if usuario_id == sessao.get("usuario_id"):
+                    mensagem = "Você não pode excluir sua própria conta."
+                else:
+                    auth_repository.excluir_usuario(usuario_id)
+                    mensagem = f"Usuário {alvo['email']} excluído permanentemente."
 
             usuarios = auth_repository.listar_usuarios()
             return self._responder_html(gerar_html_admin_usuarios(sessao, usuarios, token_csrf, mensagem=mensagem))
