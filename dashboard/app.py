@@ -1,9 +1,28 @@
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from html import escape
+
+
+def _fmt_data(val, hora=False):
+    """Formata date/datetime para padrão brasileiro. hora=True inclui HH:MM."""
+    if val is None or val == "" or val == "—":
+        return "—"
+    try:
+        if isinstance(val, datetime):
+            return val.strftime("%d/%m/%Y - %H:%M") if hora else val.strftime("%d/%m/%Y")
+        if isinstance(val, date):
+            return val.strftime("%d/%m/%Y")
+        s = str(val).strip()
+        if len(s) >= 10:
+            if hora and len(s) >= 16:
+                return datetime.strptime(s[:16], "%Y-%m-%d %H:%M").strftime("%d/%m/%Y - %H:%M")
+            return date.fromisoformat(s[:10]).strftime("%d/%m/%Y")
+        return s
+    except Exception:
+        return str(val)
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -512,7 +531,7 @@ def gerar_html_dashboard(usuario=None):
             f"<td>{escape(str(m.get('numero_processo') or ''))}</td>"
             f"<td>{escape(str(m.get('empresa') or ''))}</td>"
             f"<td>{escape(str(m.get('orgao') or ''))}</td>"
-            f"<td>{escape(str(m.get('data_movimento') or ''))}</td>"
+            f"<td>{escape(_fmt_data(m.get('data_movimento')))}</td>"
             f"<td>{escape(str(m.get('descricao') or ''))}</td>"
             f"</tr>"
         )
@@ -531,7 +550,7 @@ def gerar_html_dashboard(usuario=None):
             f"<td>{escape(str(c.get('empresa') or ''))}</td>"
             f"<td>{escape(str(c.get('orgao') or ''))}</td>"
             f"<td>{badge}</td>"
-            f"<td>{escape(str(c.get('data_consulta') or ''))}</td>"
+            f"<td>{escape(_fmt_data(c.get('data_consulta'), hora=True))}</td>"
             f"</tr>"
         )
     if not html_consultas:
@@ -696,7 +715,7 @@ def _html_movimentacoes_expandidas(movs):
         return '<p style="color:#6b7280;margin:0">Nenhuma movimentação registrada para este dia.</p>'
     linhas = ""
     for m in movs:
-        dt  = escape(str(m.get("data_movimento") or "—"))
+        dt  = escape(_fmt_data(m.get("data_movimento")))
         hr  = escape(str(m.get("hora_captura") or "")[:5])
         desc = escape(str(m.get("descricao") or "").strip()[:300])
         # Só exibe linhas que parecem tramitações reais (têm data e texto)
@@ -771,15 +790,15 @@ def gerar_html_movimentacoes_hoje(data_str=None, usuario=None):
         status    = _badge_status(status_val)
         status_raw= escape(status_val)
         total     = p.get("total_movimentacoes_hoje", 0)
-        dt_mov    = escape(str(p.get("data_ultimo_movimento") or "—"))
-        ult_c     = escape(str(p.get("ultima_consulta") or "—"))
+        dt_mov    = escape(_fmt_data(p.get("data_ultimo_movimento")))
+        ult_c     = escape(_fmt_data(p.get("ultima_consulta"), hora=True))
 
         movs_hoje_proc = movs_agrupadas.get(pid, [])
         movs_hist_proc = movs_historico.get(pid, [])
 
         if total > 0:
             indicador = f'<span class="badge verde">✔ {total} nova{"s" if total > 1 else ""}</span>'
-            cor_linha = "background:#fff8f0;"
+            cor_linha = "linha-destaque"
         elif movs_hist_proc:
             indicador = '<span class="badge cinza">— sem mov. hoje</span>'
             cor_linha = ""
@@ -796,10 +815,10 @@ def gerar_html_movimentacoes_hoje(data_str=None, usuario=None):
             data-status="{status_raw}"
             data-tem-mov="{1 if total > 0 else 0}"
             data-concluido="{'1' if concluido else '0'}"
-            style="{cor_linha}{opacidade}"
+            style="{opacidade}"
             onclick="window.location='{link_detalhe}'"
             title="Ver detalhes e movimentacoes"
-            class="linha-processo{'  concluido' if concluido else ''}">
+            class="linha-processo{' concluido' if concluido else ''}{' ' + cor_linha if cor_linha else ''}">
             <td>
                 <a href="{link_detalhe}" style="color:inherit;text-decoration:none;font-weight:700;">
                     {num}
@@ -916,6 +935,10 @@ def gerar_html_movimentacoes_hoje(data_str=None, usuario=None):
     <style>{CSS_BASE}
     tr.linha-processo {{ cursor: pointer; }}
     tr.linha-processo:hover td {{ background: var(--bg-hover) !important; }}
+    tr.linha-destaque td {{ background: #fff8f0; color: var(--text-main); }}
+    [data-theme="dark"] tr.linha-destaque td {{ background: #2a1800; color: var(--text-main); }}
+    tr.linha-destaque:hover td {{ background: #ffe8d6 !important; }}
+    [data-theme="dark"] tr.linha-destaque:hover td {{ background: #3a2200 !important; }}
     #aviso-filtro {{ background: #dbeafe; color: #1e40af; }}
     [data-theme="dark"] #aviso-filtro {{ background: #0c1f3d; color: #79b8ff; }}
     </style>
@@ -1009,15 +1032,15 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
     mun    = escape(str(processo.get("municipio") or orgao))
     status = _badge_status(str(processo.get("status_atual") or ""))
     robo   = escape(str(processo.get("robo") or "—"))
-    dt_mov = escape(str(processo.get("data_ultimo_movimento") or "—"))
-    ult_c  = escape(str(processo.get("ultima_consulta") or "—"))
+    dt_mov = escape(_fmt_data(processo.get("data_ultimo_movimento")))
+    ult_c  = escape(_fmt_data(processo.get("ultima_consulta"), hora=True))
     url_o  = escape(str(processo.get("url_orgao") or ""))
 
     # Movimentações
     linhas_mov = ""
     for m in movimentacoes:
-        dt   = escape(str(m.get("data_movimento") or "—"))
-        dc   = escape(str(m.get("data_captura") or ""))
+        dt   = escape(_fmt_data(m.get("data_movimento")))
+        dc   = escape(_fmt_data(m.get("data_captura")))
         hr   = escape(str(m.get("hora_captura") or "")[:5])
         desc = escape(str(m.get("descricao") or "").strip())
         if not desc or len(desc) < 5:
