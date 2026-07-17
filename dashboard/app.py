@@ -1018,7 +1018,7 @@ def gerar_html_movimentacoes_hoje(data_str=None, usuario=None):
 
 
 # ─────────────────────────────────────────────
-# PÁGINA: /calendario  — visão mensal (estilo Google Agenda)
+# PÁGINA: /calendario  — visão mensal (CSS Grid, estilo Google Agenda)
 # ─────────────────────────────────────────────
 def gerar_html_calendario(ano: int, mes: int, usuario=None):
     import calendar as _cal
@@ -1040,84 +1040,76 @@ def gerar_html_calendario(ano: int, mes: int, usuario=None):
     MESES_ABR = ["", "jan", "fev", "mar", "abr", "mai", "jun",
                  "jul", "ago", "set", "out", "nov", "dez"]
 
-    # Busca movimentações do mês
     rows = buscar_movimentacoes_do_mes(ano, mes)
 
-    # Agrupa por dia → sempre usa datetime.date como chave
     por_dia: dict = {}
     for r in rows:
         dia = r["dia"]
         if isinstance(dia, str):
             dia = date.fromisoformat(dia[:10])
-        elif hasattr(dia, "date"):          # datetime.datetime → datetime.date
+        elif hasattr(dia, "date"):
             dia = dia.date()
         por_dia.setdefault(dia, []).append(r)
 
-    # monthdatescalendar retorna objetos date reais para TODAS as células
-    # (inclusive dias do mês anterior/posterior) — semana começa no domingo (6)
+    # monthdatescalendar devolve objetos date reais (semana começa no domingo=6)
     semanas = _cal.Calendar(firstweekday=6).monthdatescalendar(ano, mes)
 
     DIAS_ABR = ["DOM.", "SEG.", "TER.", "QUA.", "QUI.", "SEX.", "SÁB."]
-    cabecalho = "".join(f'<th class="cal-th">{d}</th>' for d in DIAS_ABR)
 
-    linhas_html = ""
+    # ── cabeçalho (7 divs de header) ──
+    header_html = "".join(
+        f'<div class="gcal-th">{d}</div>' for d in DIAS_ABR
+    )
+
+    # ── células de dias ──
     MAX_CHIPS = 3
+    cells_html = ""
     for semana in semanas:
-        linhas_html += '<tr class="cal-semana">'
         for d in semana:
             is_mes_atual = d.month == mes
             is_hoje      = d == hoje
+            movs         = por_dia.get(d, [])
 
-            movs = por_dia.get(d, [])
-
-            # Classes da célula
-            cls = "cal-dia"
+            cls = "gcal-cell"
             if not is_mes_atual:
-                cls += " cal-outro-mes"
-            if is_hoje:
-                cls += " cal-hoje"
+                cls += " gcal-outro"
 
-            # Número do dia — primeiro dia do mês mostra "1 jul" para orientação
             if d.day == 1 and not is_mes_atual:
-                label_num = str(d.day) + " " + MESES_ABR[d.month]
+                label_num = str(d.day) + " " + MESES_ABR[d.month]
             else:
                 label_num = str(d.day)
 
-            if is_hoje:
-                num_html = f'<span class="cal-num cal-num-hoje">{label_num}</span>'
-            else:
-                num_html = f'<span class="cal-num">{label_num}</span>'
+            num_cls  = "gcal-num gcal-num-hoje" if is_hoje else "gcal-num"
+            num_html = f'<div class="gcal-head"><span class="{num_cls}">{label_num}</span></div>'
 
-            # Chips de processo
             chips = ""
             for mv in movs[:MAX_CHIPS]:
-                pid   = mv["processo_id"]
-                num_p = escape(str(mv["numero_processo"] or ""))
-                emp   = escape(str(mv["empresa"] or ""))
-                total = mv["total"]
+                pid        = mv["processo_id"]
+                num_p      = escape(str(mv["numero_processo"] or ""))
+                emp        = escape(str(mv["empresa"] or ""))
+                total      = mv["total"]
                 chip_label = emp if emp and emp not in ("—", "") else num_p
                 chips += (
-                    f'<a href="/processo/{pid}" class="cal-chip"'
+                    f'<a href="/processo/{pid}" class="gcal-chip"'
                     f' title="{num_p} — {emp} ({total} mov.)">'
-                    f'<span class="cal-chip-txt">{chip_label}</span>'
-                    f'<span class="cal-chip-ct">{total}</span>'
+                    f'<span class="gcal-chip-label">{chip_label}</span>'
+                    f'<span class="gcal-chip-n">{total}</span>'
                     f'</a>'
                 )
             if len(movs) > MAX_CHIPS:
-                restantes  = len(movs) - MAX_CHIPS
-                data_link  = d.strftime("%Y-%m-%d")
+                extra     = len(movs) - MAX_CHIPS
+                data_link = d.strftime("%Y-%m-%d")
                 chips += (
-                    f'<a href="/movimentacoes-hoje?data={data_link}" class="cal-chip cal-chip-mais">'
-                    f'+{restantes} mais</a>'
+                    f'<a href="/movimentacoes-hoje?data={data_link}"'
+                    f' class="gcal-chip gcal-mais">+{extra} mais</a>'
                 )
 
-            linhas_html += (
-                f'<td class="{cls}">'
-                f'<div class="cal-dia-head">{num_html}</div>'
-                f'<div class="cal-chips">{chips}</div>'
-                f'</td>'
+            cells_html += (
+                f'<div class="{cls}">'
+                f'{num_html}'
+                f'<div class="gcal-events">{chips}</div>'
+                f'</div>'
             )
-        linhas_html += "</tr>"
 
     total_mes    = sum(len(v) for v in por_dia.values())
     dias_com_mov = len(por_dia)
@@ -1126,85 +1118,111 @@ def gerar_html_calendario(ano: int, mes: int, usuario=None):
     mes_prox_str = str(mes_prox).zfill(2)
     pode_avancar = primeiro_dia < hoje.replace(day=1) or (ano == hoje.year and mes == hoje.month)
     if pode_avancar:
-        nav_prox = ('<a class="nav-btn" href="/calendario?ano=' + str(ano_prox)
-                    + '&mes=' + mes_prox_str + '">' + MESES_PT[mes_prox] + ' &rarr;</a>')
+        nav_prox = (
+            '<a class="nav-btn" href="/calendario?ano=' + str(ano_prox)
+            + '&mes=' + mes_prox_str + '">' + MESES_PT[mes_prox] + ' &rarr;</a>'
+        )
     else:
-        nav_prox = ('<span class="nav-btn nav-btn-off">'
-                    + MESES_PT[mes_prox] + ' &rarr;</span>')
+        nav_prox = (
+            '<span class="nav-btn nav-btn-off">'
+            + MESES_PT[mes_prox] + ' &rarr;</span>'
+        )
 
     css_cal = """
-/* ── Calendário Google-style ─────────────────── */
-.cal-wrap  { overflow-x: auto; }
-.cal-table {
-    width: 100%; border-collapse: collapse; table-layout: fixed;
-    min-width: 700px; background: var(--bg-card);
-    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
-}
-.cal-th {
-    padding: 10px 0; text-align: center; font-size: 11px; font-weight: 700;
-    letter-spacing: .06em; color: var(--text-2); background: var(--bg-card);
-    border-bottom: 1px solid var(--border);
-}
-.cal-semana td { border-top: 1px solid var(--border); }
-.cal-dia {
-    vertical-align: top; padding: 4px 6px 6px;
-    height: 115px; overflow: hidden; background: var(--bg-card);
-    border-left: 1px solid var(--border);
-}
-.cal-dia:first-child { border-left: none; }
-/* dias de outro mês — fundo levemente diferente */
-.cal-outro-mes { background: var(--bg-page); }
-.cal-outro-mes .cal-num { color: var(--text-3); }
-
-/* número do dia */
-.cal-dia-head { display: flex; justify-content: center; margin-bottom: 3px; }
-.cal-num {
-    display: inline-block; font-size: 12px; font-weight: 600;
-    color: var(--text-2); width: 26px; height: 26px; line-height: 26px;
-    text-align: center; border-radius: 50%;
-}
-.cal-num-hoje {
-    background: var(--blue); color: #fff !important; font-weight: 700;
-}
-
-/* chips de evento */
-.cal-chips { display: flex; flex-direction: column; gap: 2px; }
-.cal-chip {
-    display: flex; align-items: center; gap: 4px;
-    font-size: 11px; line-height: 1.3; padding: 2px 5px; border-radius: 4px;
-    background: #1a73e8; color: #fff;
-    text-decoration: none; overflow: hidden; white-space: nowrap;
-    transition: filter .15s;
-}
-.cal-chip:hover { filter: brightness(1.15); }
-[data-theme="dark"] .cal-chip { background: #174ea6; color: #aecbfa; }
-.cal-chip-txt { overflow: hidden; text-overflow: ellipsis; flex: 1; }
-.cal-chip-ct {
-    flex-shrink: 0; font-size: 10px; font-weight: 700;
-    background: rgba(255,255,255,.25); border-radius: 10px; padding: 0 4px;
-    min-width: 18px; text-align: center;
-}
-[data-theme="dark"] .cal-chip-ct { background: rgba(255,255,255,.15); }
-.cal-chip-mais {
-    background: transparent; color: var(--text-2);
-    border: 1px solid var(--border); font-style: italic;
-    justify-content: center;
-}
-.cal-chip-mais:hover { filter: none; background: var(--bg-hover); }
-[data-theme="dark"] .cal-chip-mais { color: var(--text-2); }
-
-/* navegação de mês */
+/* ── Calendário (CSS Grid, estilo Google Agenda) ── */
 .nav-mes {
-    display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 20px; flex-wrap: wrap;
 }
 .nav-mes .mes-atual { font-size: 22px; font-weight: 800; color: var(--text-1); }
 .nav-btn {
     padding: 7px 18px; border: 1px solid var(--border); border-radius: 8px;
     color: var(--text-1); text-decoration: none; font-weight: 500;
-    background: var(--bg-card); white-space: nowrap;
+    background: var(--bg-card); white-space: nowrap; display: inline-block;
 }
 .nav-btn:hover { background: var(--bg-hover); }
 .nav-btn-off { color: var(--text-3); cursor: default; }
+
+.gcal-wrap { overflow-x: auto; }
+.gcal {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    min-width: 700px;
+}
+.gcal-th {
+    background: var(--bg-th);
+    text-align: center;
+    padding: 9px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    color: var(--text-2);
+}
+.gcal-cell {
+    background: var(--bg-card);
+    min-height: 110px;
+    padding: 4px 5px 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.gcal-outro {
+    background: var(--bg-page);
+}
+.gcal-outro .gcal-num {
+    color: var(--text-3);
+}
+.gcal-head {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 3px;
+}
+.gcal-num {
+    display: inline-block;
+    width: 26px; height: 26px; line-height: 26px;
+    text-align: center; border-radius: 50%;
+    font-size: 12px; font-weight: 600;
+    color: var(--text-2);
+}
+.gcal-num-hoje {
+    background: var(--blue);
+    color: #fff !important;
+    font-weight: 700;
+}
+.gcal-events {
+    display: flex; flex-direction: column; gap: 2px;
+    flex: 1; overflow: hidden;
+}
+.gcal-chip {
+    display: flex; align-items: center; gap: 4px;
+    padding: 2px 5px; border-radius: 4px;
+    background: #1a73e8; color: #fff;
+    font-size: 11px; line-height: 1.35;
+    text-decoration: none; overflow: hidden; white-space: nowrap;
+    transition: filter .15s;
+}
+.gcal-chip:hover { filter: brightness(1.15); }
+[data-theme="dark"] .gcal-chip { background: #1d4ed8; color: #bfdbfe; }
+.gcal-chip-label {
+    overflow: hidden; text-overflow: ellipsis; flex: 1;
+}
+.gcal-chip-n {
+    flex-shrink: 0; font-size: 10px; font-weight: 700;
+    background: rgba(255,255,255,.28); border-radius: 10px;
+    padding: 0 4px; min-width: 17px; text-align: center;
+}
+[data-theme="dark"] .gcal-chip-n { background: rgba(255,255,255,.2); }
+.gcal-mais {
+    background: transparent; color: var(--text-2);
+    border: 1px solid var(--border); font-style: italic;
+    justify-content: center;
+}
+.gcal-mais:hover { filter: none; background: var(--bg-hover); }
 """
 
     return f"""<!DOCTYPE html>
@@ -1239,11 +1257,11 @@ def gerar_html_calendario(ano: int, mes: int, usuario=None):
                  <span style="color:var(--text-2);margin-left:6px;">dias com atividade</span></div>
         </div>
 
-        <div class="cal-wrap">
-            <table class="cal-table">
-                <thead><tr>{cabecalho}</tr></thead>
-                <tbody>{linhas_html}</tbody>
-            </table>
+        <div class="gcal-wrap">
+            <div class="gcal">
+                {header_html}
+                {cells_html}
+            </div>
         </div>
     </div>
 </body>
