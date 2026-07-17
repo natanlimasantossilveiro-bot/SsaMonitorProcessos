@@ -304,6 +304,35 @@ def buscar_historico_7_dias():
 # Página de detalhe de processo
 # ─────────────────────────────────────────────
 
+def buscar_movimentacoes_do_mes(ano: int, mes: int):
+    """
+    Retorna todas as movimentações de um mês, agrupadas por dia e processo.
+    """
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT
+            m.data_movimento AS dia,
+            p.id            AS processo_id,
+            p.numero_processo,
+            p.empresa,
+            o.nome          AS orgao,
+            COUNT(*)        AS total
+        FROM movimentacoes m
+        JOIN processos p ON p.id = m.processo_id
+        LEFT JOIN orgaos o ON o.id = p.orgao_id
+        WHERE YEAR(m.data_movimento) = %s
+          AND MONTH(m.data_movimento) = %s
+          AND m.data_movimento IS NOT NULL
+        GROUP BY m.data_movimento, p.id, p.numero_processo, p.empresa, o.nome
+        ORDER BY m.data_movimento, p.id
+    """, (ano, mes))
+    resultado = cursor.fetchall()
+    cursor.close()
+    conexao.close()
+    return resultado
+
+
 def buscar_processo_por_id_dashboard(processo_id: int):
     """Retorna os dados completos de um processo com nome do órgão."""
     conexao = criar_conexao()

@@ -47,6 +47,7 @@ from dashboard.dashboard_repository import (
     buscar_processo_por_id_dashboard,
     buscar_movimentacoes_do_processo,
     buscar_historico_consultas_do_processo,
+    buscar_movimentacoes_do_mes,
 )
 
 from dashboard.dashboard_html import gerar_linhas_tabela
@@ -416,6 +417,7 @@ def _badge_status(status):
 def _topbar(pagina_atual="/", usuario=None):
     links = [
         ("/", "Dashboard"),
+        ("/calendario", "Calendário"),
         ("/movimentacoes-hoje", "Movimentações Hoje"),
     ]
     if usuario and usuario.get("is_admin"):
@@ -1016,6 +1018,239 @@ def gerar_html_movimentacoes_hoje(data_str=None, usuario=None):
 
 
 # ─────────────────────────────────────────────
+# PÁGINA: /calendario  — visão mensal (estilo Google Agenda)
+# ─────────────────────────────────────────────
+def gerar_html_calendario(ano: int, mes: int, usuario=None):
+    import calendar as _cal
+
+    hoje = date.today()
+    primeiro_dia = date(ano, mes, 1)
+
+    if mes == 1:
+        mes_ant, ano_ant = 12, ano - 1
+    else:
+        mes_ant, ano_ant = mes - 1, ano
+    if mes == 12:
+        mes_prox, ano_prox = 1, ano + 1
+    else:
+        mes_prox, ano_prox = mes + 1, ano
+
+    MESES_PT = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+    MESES_ABR = ["", "jan", "fev", "mar", "abr", "mai", "jun",
+                 "jul", "ago", "set", "out", "nov", "dez"]
+
+    # Busca movimentações do mês
+    rows = buscar_movimentacoes_do_mes(ano, mes)
+
+    # Agrupa por dia → sempre usa datetime.date como chave
+    por_dia: dict = {}
+    for r in rows:
+        dia = r["dia"]
+        if isinstance(dia, str):
+            dia = date.fromisoformat(dia[:10])
+        elif hasattr(dia, "date"):          # datetime.datetime → datetime.date
+            dia = dia.date()
+        por_dia.setdefault(dia, []).append(r)
+
+    # monthdatescalendar retorna objetos date reais para TODAS as células
+    # (inclusive dias do mês anterior/posterior) — semana começa no domingo (6)
+    semanas = _cal.Calendar(firstweekday=6).monthdatescalendar(ano, mes)
+
+    DIAS_ABR = ["DOM.", "SEG.", "TER.", "QUA.", "QUI.", "SEX.", "SÁB."]
+    cabecalho = "".join(f'<th class="cal-th">{d}</th>' for d in DIAS_ABR)
+
+    linhas_html = ""
+    MAX_CHIPS = 3
+    for semana in semanas:
+        linhas_html += '<tr class="cal-semana">'
+        for d in semana:
+            is_mes_atual = d.month == mes
+            is_hoje      = d == hoje
+
+            movs = por_dia.get(d, [])
+
+            # Classes da célula
+            cls = "cal-dia"
+            if not is_mes_atual:
+                cls += " cal-outro-mes"
+            if is_hoje:
+                cls += " cal-hoje"
+
+            # Número do dia — primeiro dia do mês mostra "1 jul" para orientação
+            if d.day == 1 and not is_mes_atual:
+                label_num = str(d.day) + " " + MESES_ABR[d.month]
+            else:
+                label_num = str(d.day)
+
+            if is_hoje:
+                num_html = f'<span class="cal-num cal-num-hoje">{label_num}</span>'
+            else:
+                num_html = f'<span class="cal-num">{label_num}</span>'
+
+            # Chips de processo
+            chips = ""
+            for mv in movs[:MAX_CHIPS]:
+                pid   = mv["processo_id"]
+                num_p = escape(str(mv["numero_processo"] or ""))
+                emp   = escape(str(mv["empresa"] or ""))
+                total = mv["total"]
+                chip_label = emp if emp and emp not in ("—", "") else num_p
+                chips += (
+                    f'<a href="/processo/{pid}" class="cal-chip"'
+                    f' title="{num_p} — {emp} ({total} mov.)">'
+                    f'<span class="cal-chip-txt">{chip_label}</span>'
+                    f'<span class="cal-chip-ct">{total}</span>'
+                    f'</a>'
+                )
+            if len(movs) > MAX_CHIPS:
+                restantes  = len(movs) - MAX_CHIPS
+                data_link  = d.strftime("%Y-%m-%d")
+                chips += (
+                    f'<a href="/movimentacoes-hoje?data={data_link}" class="cal-chip cal-chip-mais">'
+                    f'+{restantes} mais</a>'
+                )
+
+            linhas_html += (
+                f'<td class="{cls}">'
+                f'<div class="cal-dia-head">{num_html}</div>'
+                f'<div class="cal-chips">{chips}</div>'
+                f'</td>'
+            )
+        linhas_html += "</tr>"
+
+    total_mes    = sum(len(v) for v in por_dia.values())
+    dias_com_mov = len(por_dia)
+
+    mes_ant_str  = str(mes_ant).zfill(2)
+    mes_prox_str = str(mes_prox).zfill(2)
+    pode_avancar = primeiro_dia < hoje.replace(day=1) or (ano == hoje.year and mes == hoje.month)
+    if pode_avancar:
+        nav_prox = ('<a class="nav-btn" href="/calendario?ano=' + str(ano_prox)
+                    + '&mes=' + mes_prox_str + '">' + MESES_PT[mes_prox] + ' &rarr;</a>')
+    else:
+        nav_prox = ('<span class="nav-btn nav-btn-off">'
+                    + MESES_PT[mes_prox] + ' &rarr;</span>')
+
+    css_cal = """
+/* ── Calendário Google-style ─────────────────── */
+.cal-wrap  { overflow-x: auto; }
+.cal-table {
+    width: 100%; border-collapse: collapse; table-layout: fixed;
+    min-width: 700px; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+}
+.cal-th {
+    padding: 10px 0; text-align: center; font-size: 11px; font-weight: 700;
+    letter-spacing: .06em; color: var(--text-2); background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+}
+.cal-semana td { border-top: 1px solid var(--border); }
+.cal-dia {
+    vertical-align: top; padding: 4px 6px 6px;
+    height: 115px; overflow: hidden; background: var(--bg-card);
+    border-left: 1px solid var(--border);
+}
+.cal-dia:first-child { border-left: none; }
+/* dias de outro mês — fundo levemente diferente */
+.cal-outro-mes { background: var(--bg-page); }
+.cal-outro-mes .cal-num { color: var(--text-3); }
+
+/* número do dia */
+.cal-dia-head { display: flex; justify-content: center; margin-bottom: 3px; }
+.cal-num {
+    display: inline-block; font-size: 12px; font-weight: 600;
+    color: var(--text-2); width: 26px; height: 26px; line-height: 26px;
+    text-align: center; border-radius: 50%;
+}
+.cal-num-hoje {
+    background: var(--blue); color: #fff !important; font-weight: 700;
+}
+
+/* chips de evento */
+.cal-chips { display: flex; flex-direction: column; gap: 2px; }
+.cal-chip {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; line-height: 1.3; padding: 2px 5px; border-radius: 4px;
+    background: #1a73e8; color: #fff;
+    text-decoration: none; overflow: hidden; white-space: nowrap;
+    transition: filter .15s;
+}
+.cal-chip:hover { filter: brightness(1.15); }
+[data-theme="dark"] .cal-chip { background: #174ea6; color: #aecbfa; }
+.cal-chip-txt { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.cal-chip-ct {
+    flex-shrink: 0; font-size: 10px; font-weight: 700;
+    background: rgba(255,255,255,.25); border-radius: 10px; padding: 0 4px;
+    min-width: 18px; text-align: center;
+}
+[data-theme="dark"] .cal-chip-ct { background: rgba(255,255,255,.15); }
+.cal-chip-mais {
+    background: transparent; color: var(--text-2);
+    border: 1px solid var(--border); font-style: italic;
+    justify-content: center;
+}
+.cal-chip-mais:hover { filter: none; background: var(--bg-hover); }
+[data-theme="dark"] .cal-chip-mais { color: var(--text-2); }
+
+/* navegação de mês */
+.nav-mes {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.nav-mes .mes-atual { font-size: 22px; font-weight: 800; color: var(--text-1); }
+.nav-btn {
+    padding: 7px 18px; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text-1); text-decoration: none; font-weight: 500;
+    background: var(--bg-card); white-space: nowrap;
+}
+.nav-btn:hover { background: var(--bg-hover); }
+.nav-btn-off { color: var(--text-3); cursor: default; }
+"""
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Calendário — SSA Monitor</title>
+{_JS_THEME_INIT}
+<style>{CSS_BASE}
+{css_cal}
+</style>
+</head>
+<body>
+    {_topbar("/calendario", usuario)}
+    <div class="page-content">
+        <div class="page-header">
+            <h1>Calendário de Movimentações</h1>
+            <p>Clique em qualquer processo para ver os detalhes</p>
+        </div>
+
+        <div class="nav-mes">
+            <a class="nav-btn" href="/calendario?ano={ano_ant}&mes={mes_ant_str}">&larr; {MESES_PT[mes_ant]}</a>
+            <span class="mes-atual">{MESES_PT[mes]} de {ano}</span>
+            {nav_prox}
+        </div>
+
+        <div class="card" style="margin-bottom:16px;padding:16px 20px;display:flex;gap:32px;flex-wrap:wrap;">
+            <div><span style="font-size:24px;font-weight:800;color:var(--blue)">{total_mes}</span>
+                 <span style="color:var(--text-2);margin-left:6px;">processos com movimentação no mês</span></div>
+            <div><span style="font-size:24px;font-weight:800;color:var(--green)">{dias_com_mov}</span>
+                 <span style="color:var(--text-2);margin-left:6px;">dias com atividade</span></div>
+        </div>
+
+        <div class="cal-wrap">
+            <table class="cal-table">
+                <thead><tr>{cabecalho}</tr></thead>
+                <tbody>{linhas_html}</tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────
 # PÁGINA: /processo/<id>  — detalhe completo
 # ─────────────────────────────────────────────
 def gerar_html_detalhe_processo(processo_id: int, usuario=None):
@@ -1479,6 +1714,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
             if rota == "/":
                 return self._responder_html(gerar_html_dashboard(sessao))
+
+            if rota == "/calendario":
+                hoje_cal = date.today()
+                try:
+                    ano_p = int(qs.get("ano", [hoje_cal.year])[0])
+                    mes_p = int(qs.get("mes", [hoje_cal.month])[0])
+                    if not (1 <= mes_p <= 12):
+                        mes_p = hoje_cal.month
+                except (ValueError, TypeError):
+                    ano_p, mes_p = hoje_cal.year, hoje_cal.month
+                return self._responder_html(gerar_html_calendario(ano_p, mes_p, sessao))
 
             if rota == "/movimentacoes-hoje":
                 data_param = qs.get("data", [None])[0]
