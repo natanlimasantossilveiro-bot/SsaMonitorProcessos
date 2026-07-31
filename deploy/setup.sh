@@ -23,7 +23,9 @@ apt-get update -qq
 apt-get install -y -qq python3 python3-pip python3-venv git curl \
     libglib2.0-0 libnss3 libatk1.0-0 libatk-bridge2.0-0 \
     libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
-    libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
+    libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2
+# libasound2 foi renomeado para libasound2t64 no Ubuntu 24.04
+apt-get install -y -qq libasound2t64 2>/dev/null || apt-get install -y -qq libasound2 2>/dev/null || true
 
 # 2. Cria usuário de serviço (sem login)
 echo "[2/8] Criando usuário '$APP_USER'..."
