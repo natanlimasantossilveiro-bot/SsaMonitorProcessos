@@ -10,7 +10,7 @@ log = get_logger("caieiras")
 async def consultar_processo_caieiras(processo):
     url = processo.get("url_orgao") or processo.get("acesso")
     numero_completo = processo.get("numero_processo")
-    cnpj = processo.get("login_acesso") or processo.get("cnpj")
+    cnpj = re.sub(r"[^0-9]", "", str(processo.get("login_acesso") or processo.get("cnpj") or ""))
 
     log.info(f"Iniciando consulta — numero: {numero_completo}")
 
@@ -36,9 +36,15 @@ async def consultar_processo_caieiras(processo):
             await page.wait_for_timeout(3000)
 
             texto = await page.inner_text("body")
+            objeto = None
+            for marcador in ("Assunto:", "Objeto:", "Descrição:", "Descricao:"):
+                if marcador in texto:
+                    idx = texto.index(marcador) + len(marcador)
+                    objeto = texto[idx:idx + 500].strip().split("\n")[0].strip() or None
+                    break
             texto_lower = texto.lower()
 
-            log.debug(f"Texto capturado (primeiros 300 chars): {texto[:300]}")
+            log.debug(f"Texto capturado (primeiros 500 chars): {texto[:500]}")
 
             if "nenhum processo foi encontrado" in texto_lower:
                 await browser.close()
@@ -75,6 +81,7 @@ async def consultar_processo_caieiras(processo):
                 "status_processo": status_processo,
                 "ultima_data_movimento": data_ultimo_movimento,
                 "ultima_movimentacao": status_processo,
+                "objeto": objeto,
             }
 
     except Exception as e:

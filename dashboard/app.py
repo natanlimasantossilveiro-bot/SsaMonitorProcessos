@@ -1288,6 +1288,7 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
     dt_mov = escape(_fmt_data(processo.get("data_ultimo_movimento")))
     ult_c  = escape(_fmt_data(processo.get("ultima_consulta"), hora=True))
     url_o  = escape(str(processo.get("url_orgao") or ""))
+    objeto = escape(str(processo.get("objeto") or ""))
 
     # Movimentações
     linhas_mov = ""
@@ -1377,6 +1378,7 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
                     <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Empresa</td>
                     <td><strong>{emp}</strong></td>
                 </tr>
+                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;vertical-align:top;'>Objeto</td><td style='max-width:560px;line-height:1.5;'>" + objeto + "</td></tr>" if objeto else ""}
                 <tr>
                     <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Robô</td>
                     <td>{robo}</td>

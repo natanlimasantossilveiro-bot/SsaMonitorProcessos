@@ -7,6 +7,7 @@ from database.repositories import (
     registrar_historico_consulta,
     registrar_movimentacao,
     atualizar_dados_processo,
+    atualizar_objeto_processo,
     atualizar_caminho_solicitacao_captcha,
     limpar_caminho_solicitacao_captcha,
 )
@@ -469,6 +470,10 @@ async def consultar_com_robo(
             ultima_movimentacao,
             monitorado,
         )
+
+        objeto = resultado.get("objeto")
+        if objeto:
+            atualizar_objeto_processo(processo_id, objeto)
 
         if monitorado:
             log.info(f"Processo {processo_id} monitorado — status: {status_processo}")

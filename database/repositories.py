@@ -278,6 +278,19 @@ def atualizar_dados_processo(
     conexao.close()
 
 
+def atualizar_objeto_processo(processo_id, objeto):
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    cursor.execute("""
+        UPDATE processos SET objeto = %s WHERE id = %s AND objeto IS NULL
+    """, (objeto, processo_id))
+
+    conexao.commit()
+    cursor.close()
+    conexao.close()
+
+
 def atualizar_caminho_solicitacao_captcha(processo_id, caminho):
     conexao = criar_conexao()
     cursor = conexao.cursor()

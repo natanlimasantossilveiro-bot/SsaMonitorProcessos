@@ -40,6 +40,12 @@ class RobotEsicSJP(RobotBase):
             await page.wait_for_timeout(5000)
 
             texto = await page.inner_text("body")
+            objeto = None
+            for marcador in ("Assunto:", "Objeto:", "Descrição:", "Descricao:"):
+                if marcador in texto:
+                    idx = texto.index(marcador) + len(marcador)
+                    objeto = texto[idx:idx + 500].strip().split("\n")[0].strip() or None
+                    break
             linhas = [l.strip() for l in texto.split("\n") if l.strip()]
 
             log.info(f"Linhas capturadas: {len(linhas)}")
@@ -63,6 +69,7 @@ class RobotEsicSJP(RobotBase):
                 "status": "OK",
                 "status_processo": status,
                 "movimentacoes": linhas[:30],
+                "objeto": objeto,
             }
 
 

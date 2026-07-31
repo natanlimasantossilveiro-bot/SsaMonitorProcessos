@@ -93,6 +93,7 @@ async def consultar_processo_curitiba(processo):
                 "status_processo": dados_extraidos["situacao"],
                 "ultima_data_movimento": dados_extraidos["ultima_data_movimento"],
                 "ultima_movimentacao": dados_extraidos["ultima_movimentacao"],
+                "objeto": dados_extraidos.get("assunto") or dados_extraidos.get("observacoes"),
             }
 
     except Exception as erro:

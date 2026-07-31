@@ -59,6 +59,14 @@ async def executar_consulta_sjp(processo):
         except Exception:
             log.warning("Tabela de resultado nao encontrada")
 
+        texto_pagina = await page.inner_text("body")
+        objeto = None
+        for marcador in ("Assunto:", "Objeto:", "Descrição:", "Descricao:"):
+            if marcador in texto_pagina:
+                idx = texto_pagina.index(marcador) + len(marcador)
+                objeto = texto_pagina[idx:idx + 500].strip().split("\n")[0].strip() or None
+                break
+
         movimentacoes = []
         linhas = await page.locator("table tr").all()
         for linha in linhas:
@@ -97,6 +105,7 @@ async def executar_consulta_sjp(processo):
         "status": "OK",
         "status_processo": status,
         "movimentacoes": movimentacoes,
+        "objeto": objeto,
     }
 
 

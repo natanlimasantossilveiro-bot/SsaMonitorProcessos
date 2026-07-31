@@ -298,6 +298,25 @@ class RobotAtendeNetV2:
                 if "selecionado" in str(sel_r):
                     await tab.sleep(3)
 
+            # ── Extrai objeto do processo (Observação de Abertura) ───────────
+            objeto = None
+            try:
+                texto_info = str(await tab.evaluate(f"""
+                (() => {{
+                    {_JS_EMBED_DOC}
+                    const [doc] = __embedDoc();
+                    return doc && doc.body ? doc.body.innerText : '';
+                }})()
+                """) or "")
+
+                for marcador in ["Observação de Abertura:", "Observacao de Abertura:"]:
+                    if marcador in texto_info:
+                        idx = texto_info.index(marcador) + len(marcador)
+                        objeto = texto_info[idx:idx + 1000].strip()
+                        break
+            except Exception as e:
+                log.debug(f"Nao foi possivel extrair objeto: {e}")
+
             # ── Extrai movimentacoes ──────────────────────────────────────────
             await tab.sleep(6)
             movimentacoes = []
@@ -402,6 +421,7 @@ class RobotAtendeNetV2:
                 "status": "OK",
                 "status_processo": status,
                 "movimentacoes": movimentacoes,
+                "objeto": objeto,
             }
 
         finally:

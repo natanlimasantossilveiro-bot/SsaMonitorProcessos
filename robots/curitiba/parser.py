@@ -107,6 +107,7 @@ def extrair_dados_resultado_curitiba(texto):
         "ultima_data_movimento": None,
         "ultima_movimentacao": None,
         "observacoes": None,
+        "assunto": None,
     }
 
     if "PROTOCOLO Nº" in linhas:
@@ -144,6 +145,13 @@ def extrair_dados_resultado_curitiba(texto):
 
         if indice + 1 < len(linhas):
             dados["observacoes"] = linhas[indice + 1]
+
+    for label in ("Assunto:", "Objeto:", "Descrição:"):
+        if label in linhas:
+            indice = linhas.index(label)
+            if indice + 1 < len(linhas):
+                dados["assunto"] = linhas[indice + 1]
+            break
 
     return dados
 

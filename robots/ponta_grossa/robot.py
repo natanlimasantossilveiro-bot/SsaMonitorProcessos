@@ -24,6 +24,12 @@ async def consultar_processo_ponta_grossa(processo):
             log.info("Pagina carregada")
 
             texto = await page.inner_text("body")
+            objeto = None
+            for marcador in ("Assunto:", "Objeto:", "Descrição:", "Descricao:"):
+                if marcador in texto:
+                    idx = texto.index(marcador) + len(marcador)
+                    objeto = texto[idx:idx + 500].strip().split("\n")[0].strip() or None
+                    break
             texto_lower = texto.lower()
 
             log.debug(f"Texto capturado (primeiros 300 chars): {texto[:300]}")
@@ -81,6 +87,7 @@ async def consultar_processo_ponta_grossa(processo):
                 "ultima_data_movimento": data_ultimo_movimento,
                 "ultima_movimentacao": ultima_movimentacao,
                 "texto_completo": texto,
+                "objeto": objeto,
             }
 
     except Exception as e:

@@ -17,6 +17,9 @@ logs/
 # Evidências
 evidencias/
 
+# Relatórios gerados automaticamente
+relatorios/
+
 *.xlsx
 
 # Sessoes autenticadas (cookies — nao versionar)

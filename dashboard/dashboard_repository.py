@@ -29,7 +29,7 @@ def executar_query_unica(query):
 
 def buscar_total_processos():
     resultado = executar_query_unica(
-        "SELECT COUNT(*) AS total FROM processos;"
+        "SELECT COUNT(*) AS total FROM processos WHERE ativo = TRUE;"
     )
     return resultado["total"]
 
@@ -38,7 +38,8 @@ def buscar_processos_monitorados():
     resultado = executar_query_unica("""
         SELECT COUNT(*) AS total
         FROM processos
-        WHERE status_atual IS NOT NULL
+        WHERE ativo = TRUE
+        AND status_atual IS NOT NULL
         AND status_atual <> '';
     """)
     return resultado["total"]
@@ -340,7 +341,7 @@ def buscar_processo_por_id_dashboard(processo_id: int):
     cursor.execute("""
         SELECT
             p.id, p.numero_processo, p.empresa, p.cnpj,
-            p.municipio, p.exercicio, p.codigo,
+            p.municipio, p.exercicio, p.codigo, p.objeto,
             p.status_atual, p.status_processo,
             p.data_ultimo_movimento, p.ultima_movimentacao,
             p.ultima_consulta, p.monitorado, p.robo,
