@@ -1705,6 +1705,7 @@ select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--b
         </table>
     </div>
 </div>
+{_JS_THEME_TOGGLE}
 </body>
 </html>"""
 
