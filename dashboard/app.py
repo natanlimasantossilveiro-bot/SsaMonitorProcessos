@@ -1625,13 +1625,13 @@ def gerar_html_processos(processos, orgaos, empresas, statuses,
         badge_r = _badge_resultado(p.get("ultimo_resultado"))
         linhas += f"""
         <tr onclick="window.location='/processo/{pid}'" style="cursor:pointer;">
-            <td><strong>{num}</strong></td>
-            <td>{emp}<br><span style='font-size:11px;color:var(--text-3);'>{cli}</span></td>
-            <td>{org}</td>
+            <td><strong style='font-size:12px;'>{num}</strong></td>
+            <td><span style='font-size:12px;'>{emp}</span><span style='font-size:10px;color:var(--text-3);margin-left:5px;'>({cli})</span></td>
+            <td style='font-size:12px;'>{org}</td>
             <td>{badge_s}</td>
             <td>{badge_r}</td>
-            <td style='font-size:12px;color:var(--text-2);'>{ult_c}</td>
-            <td style='font-size:12px;color:var(--text-2);'>{ult_m}</td>
+            <td style='color:var(--text-2);'>{ult_c}</td>
+            <td style='color:var(--text-2);'>{ult_m}</td>
         </tr>"""
 
     topbar = _topbar("/processos", usuario)
@@ -1643,30 +1643,32 @@ def gerar_html_processos(processos, orgaos, empresas, statuses,
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Processos — SSA Monitor</title>
+{_JS_THEME_INIT}
 <style>{CSS_BASE}
 table {{ width:100%;border-collapse:collapse; }}
-th {{ text-align:left;font-size:11px;font-weight:600;color:var(--text-3);
-     text-transform:uppercase;letter-spacing:.05em;padding:10px 12px;
+th {{ text-align:left;font-size:10px;font-weight:600;color:var(--text-3);
+     text-transform:uppercase;letter-spacing:.05em;padding:7px 10px;
      border-bottom:1px solid var(--border);white-space:nowrap; }}
-td {{ padding:12px 12px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13px; }}
+td {{ padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:12px; }}
+tr:last-child td {{ border-bottom:none; }}
 tr:hover td {{ background:var(--bg-hover); }}
 select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--border);
-          border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;cursor:pointer; }}
+          border-radius:7px;padding:5px 9px;font-size:12px;font-family:inherit;cursor:pointer; }}
 </style>
 </head>
 <body>
 {topbar}
 <div class="container" style="max-width:1200px;">
     <div style="display:flex;align-items:center;justify-content:space-between;
-                flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+                flex-wrap:wrap;gap:10px;margin-bottom:16px;">
         <div>
-            <h1 style="font-size:26px;font-weight:800;">Processos</h1>
-            <p style="color:var(--text-2);font-size:13px;margin-top:4px;">
+            <h1 style="font-size:22px;font-weight:800;">Processos</h1>
+            <p style="color:var(--text-2);font-size:12px;margin-top:2px;">
                 {total} processo{'s' if total != 1 else ''} ativo{'s' if total != 1 else ''}
             </p>
         </div>
         <form method="get" action="/processos"
-              style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
             <select name="orgao" onchange="this.form.submit()">
                 <option value="">Todas as prefeituras</option>
                 {_opt(orgaos, filtro_orgao)}
@@ -1679,12 +1681,12 @@ select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--b
                 <option value="">Todos os status</option>
                 {_opt(statuses, filtro_status)}
             </select>
-            {'<a href="/processos" style="font-size:12px;color:var(--text-3);">Limpar</a>' if (filtro_orgao or filtro_empresa or filtro_status) else ''}
+            {'<a href="/processos" style="font-size:11px;color:var(--text-3);">Limpar</a>' if (filtro_orgao or filtro_empresa or filtro_status) else ''}
         </form>
     </div>
 
     <div style="background:var(--bg-card);border:1px solid var(--border);
-                border-radius:14px;overflow:hidden;overflow-x:auto;">
+                border-radius:12px;overflow:hidden;overflow-x:auto;">
         <table>
             <thead>
                 <tr>
@@ -1698,7 +1700,7 @@ select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--b
                 </tr>
             </thead>
             <tbody>
-                {linhas if linhas else "<tr><td colspan='7' style='text-align:center;padding:40px;color:var(--text-3);'>Nenhum processo encontrado.</td></tr>"}
+                {linhas if linhas else "<tr><td colspan='7' style='text-align:center;padding:32px;color:var(--text-3);'>Nenhum processo encontrado.</td></tr>"}
             </tbody>
         </table>
     </div>
