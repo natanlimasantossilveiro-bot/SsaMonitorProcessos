@@ -1607,7 +1607,7 @@ def gerar_html_processos(processos, orgaos, empresas, statuses,
             return "<span style='color:var(--text-3);font-size:12px;'>—</span>"
         if r == "OK":
             return "<span style='background:#10b98122;color:#10b981;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;'>OK</span>"
-        return "<span style='background:#ef444422;color:#ef4444;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;'>ERRO_CONSULTA</span>"
+        return "<span style='background:#ef444422;color:#ef4444;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;'>ERRO</span>"
 
     def _opt(lista, sel):
         return "".join(f"<option value='{escape(v)}' {'selected' if v==sel else ''}>{escape(v)}</option>" for v in lista)
