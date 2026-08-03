@@ -482,6 +482,78 @@ def buscar_dados_relatorio(data_inicio, data_fim, orgao=None, empresa=None, stat
     return por_orgao, processos
 
 
+def buscar_todos_processos(orgao=None, empresa=None, status=None):
+    """Lista completa de processos ativos com último resultado de consulta."""
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    where = ["p.ativo = TRUE"]
+    params = []
+    if orgao:
+        where.append("o.nome = %s")
+        params.append(orgao)
+    if empresa:
+        where.append("p.empresa = %s")
+        params.append(empresa)
+    if status:
+        where.append("p.status_atual = %s")
+        params.append(status)
+
+    cursor.execute(f"""
+        SELECT
+            p.id,
+            p.numero_processo,
+            p.empresa,
+            p.cliente,
+            p.status_atual,
+            p.ultima_consulta,
+            p.data_ultimo_movimento,
+            o.nome AS orgao,
+            (
+                SELECT h.status_consulta
+                FROM historico_consultas h
+                WHERE h.processo_id = p.id
+                ORDER BY h.id DESC
+                LIMIT 1
+            ) AS ultimo_resultado
+        FROM processos p
+        INNER JOIN orgaos o ON p.orgao_id = o.id
+        WHERE {' AND '.join(where)}
+        ORDER BY o.nome, p.empresa, p.numero_processo
+    """, params)
+    resultado = cursor.fetchall()
+    cursor.close()
+    conexao.close()
+    return resultado
+
+
+def buscar_filtros_processos():
+    """Listas de prefeituras, empresas e status para filtros da página Processos."""
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT DISTINCT o.nome FROM orgaos o
+        INNER JOIN processos p ON p.orgao_id = o.id
+        WHERE p.ativo = TRUE ORDER BY o.nome
+    """)
+    orgaos = [r['nome'] for r in cursor.fetchall()]
+    cursor.execute("""
+        SELECT DISTINCT empresa FROM processos
+        WHERE ativo = TRUE AND empresa IS NOT NULL AND empresa != ''
+        ORDER BY empresa
+    """)
+    empresas = [r['empresa'] for r in cursor.fetchall()]
+    cursor.execute("""
+        SELECT DISTINCT status_atual FROM processos
+        WHERE ativo = TRUE AND status_atual IS NOT NULL AND status_atual != ''
+        ORDER BY status_atual
+    """)
+    statuses = [r['status_atual'] for r in cursor.fetchall()]
+    cursor.close()
+    conexao.close()
+    return orgaos, empresas, statuses
+
+
 def buscar_historico_consultas_do_processo(processo_id: int, limite: int = 20):
     """Retorna as últimas N consultas registradas para um processo."""
     conexao = criar_conexao()

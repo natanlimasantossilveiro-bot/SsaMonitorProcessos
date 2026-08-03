@@ -53,6 +53,8 @@ from dashboard.dashboard_repository import (
     buscar_movimentacoes_do_mes,
     buscar_filtros_relatorio,
     buscar_dados_relatorio,
+    buscar_todos_processos,
+    buscar_filtros_processos,
 )
 
 from dashboard.dashboard_html import gerar_linhas_tabela
@@ -457,6 +459,7 @@ def _topbar(pagina_atual="/", usuario=None):
         ("/", "Dashboard"),
         ("/calendario", "Calendário"),
         ("/movimentacoes-hoje", "Movimentações Hoje"),
+        ("/processos", "Processos"),
         ("/relatorio", "Relatório"),
     ]
     if usuario and usuario.get("is_admin"):
@@ -1582,6 +1585,129 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
 
 
 # ─────────────────────────────────────────────
+# PÁGINA: /processos
+# ─────────────────────────────────────────────
+def gerar_html_processos(processos, orgaos, empresas, statuses,
+                         filtro_orgao="", filtro_empresa="", filtro_status="",
+                         usuario=None):
+    _STATUS_CORES = {
+        "Em andamento": "#2563eb", "Em analise": "#f59e0b", "Em análise": "#f59e0b",
+        "Indeferido": "#ef4444", "Deferido": "#10b981", "Finalizado": "#10b981",
+        "Encerrado": "#6b7280",
+    }
+
+    def _badge_status(s):
+        if not s:
+            return "<span style='color:var(--text-3);font-size:12px;'>—</span>"
+        cor = _STATUS_CORES.get(s, "#6b7280")
+        return f"<span style='background:{cor}22;color:{cor};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;'>{escape(s)}</span>"
+
+    def _badge_resultado(r):
+        if not r:
+            return "<span style='color:var(--text-3);font-size:12px;'>—</span>"
+        if r == "OK":
+            return "<span style='background:#10b98122;color:#10b981;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;'>OK</span>"
+        return "<span style='background:#ef444422;color:#ef4444;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;'>ERRO_CONSULTA</span>"
+
+    def _opt(lista, sel):
+        return "".join(f"<option value='{escape(v)}' {'selected' if v==sel else ''}>{escape(v)}</option>" for v in lista)
+
+    linhas = ""
+    for p in processos:
+        pid    = p["id"]
+        num    = escape(str(p["numero_processo"] or ""))
+        emp    = escape(str(p["empresa"] or ""))
+        cli    = escape(str(p["cliente"] or ""))
+        org    = escape(str(p["orgao"] or ""))
+        ult_c  = _fmt_data(p["ultima_consulta"], hora=True) if p.get("ultima_consulta") else "—"
+        ult_m  = _fmt_data(p["data_ultimo_movimento"]) if p.get("data_ultimo_movimento") else "—"
+        badge_s = _badge_status(p.get("status_atual"))
+        badge_r = _badge_resultado(p.get("ultimo_resultado"))
+        linhas += f"""
+        <tr onclick="window.location='/processo/{pid}'" style="cursor:pointer;">
+            <td><strong>{num}</strong></td>
+            <td>{emp}<br><span style='font-size:11px;color:var(--text-3);'>{cli}</span></td>
+            <td>{org}</td>
+            <td>{badge_s}</td>
+            <td>{badge_r}</td>
+            <td style='font-size:12px;color:var(--text-2);'>{ult_c}</td>
+            <td style='font-size:12px;color:var(--text-2);'>{ult_m}</td>
+        </tr>"""
+
+    topbar = _gerar_topbar(usuario, ativa="/processos")
+    total  = len(processos)
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Processos — SSA Monitor</title>
+<style>{CSS_BASE}
+table {{ width:100%;border-collapse:collapse; }}
+th {{ text-align:left;font-size:11px;font-weight:600;color:var(--text-3);
+     text-transform:uppercase;letter-spacing:.05em;padding:10px 12px;
+     border-bottom:1px solid var(--border);white-space:nowrap; }}
+td {{ padding:12px 12px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13px; }}
+tr:hover td {{ background:var(--bg-hover); }}
+select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--border);
+          border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;cursor:pointer; }}
+</style>
+</head>
+<body>
+{topbar}
+<div class="container" style="max-width:1200px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+        <div>
+            <h1 style="font-size:26px;font-weight:800;">Processos</h1>
+            <p style="color:var(--text-2);font-size:13px;margin-top:4px;">
+                {total} processo{'s' if total != 1 else ''} ativo{'s' if total != 1 else ''}
+            </p>
+        </div>
+        <form method="get" action="/processos"
+              style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select name="orgao" onchange="this.form.submit()">
+                <option value="">Todas as prefeituras</option>
+                {_opt(orgaos, filtro_orgao)}
+            </select>
+            <select name="empresa" onchange="this.form.submit()">
+                <option value="">Todas as empresas</option>
+                {_opt(empresas, filtro_empresa)}
+            </select>
+            <select name="status" onchange="this.form.submit()">
+                <option value="">Todos os status</option>
+                {_opt(statuses, filtro_status)}
+            </select>
+            {'<a href="/processos" style="font-size:12px;color:var(--text-3);">Limpar</a>' if (filtro_orgao or filtro_empresa or filtro_status) else ''}
+        </form>
+    </div>
+
+    <div style="background:var(--bg-card);border:1px solid var(--border);
+                border-radius:14px;overflow:hidden;overflow-x:auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nº Processo</th>
+                    <th>Empresa</th>
+                    <th>Prefeitura</th>
+                    <th>Status</th>
+                    <th>Resultado</th>
+                    <th>Última consulta</th>
+                    <th>Último mov.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {linhas if linhas else "<tr><td colspan='7' style='text-align:center;padding:40px;color:var(--text-3);'>Nenhum processo encontrado.</td></tr>"}
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────
 # PÁGINA: /relatorio  — filtros
 # ─────────────────────────────────────────────
 def gerar_html_relatorio(orgaos, empresas, statuses, usuario=None):
@@ -2386,6 +2512,21 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 if html is None:
                     return self._negar(404, "Processo não encontrado.")
                 return self._responder_html(html)
+
+            if rota == "/processos":
+                from urllib.parse import parse_qs, urlparse
+                qs = parse_qs(urlparse(self.path).query)
+                f_orgao   = qs.get("orgao",   [""])[0]
+                f_empresa = qs.get("empresa", [""])[0]
+                f_status  = qs.get("status",  [""])[0]
+                orgaos, empresas, statuses = buscar_filtros_processos()
+                processos = buscar_todos_processos(
+                    f_orgao or None, f_empresa or None, f_status or None
+                )
+                return self._responder_html(gerar_html_processos(
+                    processos, orgaos, empresas, statuses,
+                    f_orgao, f_empresa, f_status, sessao
+                ))
 
             if rota == "/relatorio":
                 orgaos, empresas, statuses = buscar_filtros_relatorio()
