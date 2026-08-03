@@ -598,34 +598,72 @@ def gerar_html_dashboard(usuario=None):
     running = status_mon.get("running", False)
     btn_label = "⏳ Executando..." if running else "▶ Executar agora"
     btn_disabled = "disabled" if running else ""
+    concluidos_init = status_mon.get("concluidos", 0)
+    total_init = status_mon.get("total", 0)
+    orgao_init = status_mon.get("orgao_atual", "")
+    pct_init = round(concluidos_init / total_init * 100) if total_init else 0
 
     btn_executar_html = ""
     js_admin = ""
     if is_admin:
         btn_executar_html = f"""
-        <button id="btn-executar" onclick="executarMonitoramento()" {btn_disabled}
-                style="background:var(--blue);color:#fff;border:none;border-radius:8px;
-                       padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;
-                       opacity:{0.6 if running else 1};">
-            {btn_label}
-        </button>"""
+        <div style="text-align:right;">
+            <button id="btn-executar" onclick="executarMonitoramento()" {btn_disabled}
+                    style="background:var(--blue);color:#fff;border:none;border-radius:8px;
+                           padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;
+                           opacity:{0.6 if running else 1};font-family:inherit;">
+                {btn_label}
+            </button>
+            <div id="progresso-wrap" style="display:{'block' if running else 'none'};
+                 margin-top:10px;padding:12px 14px;background:var(--bg-card);
+                 border:1px solid var(--border);border-radius:10px;text-align:left;">
+                <div style="display:flex;justify-content:space-between;
+                            font-size:12px;color:var(--text-2);margin-bottom:6px;">
+                    <span id="progresso-label">{'Iniciando...' if not total_init else f'{concluidos_init} / {total_init} processos'}</span>
+                    <span id="progresso-pct" style="font-weight:700;">{f'{pct_init}%' if total_init else ''}</span>
+                </div>
+                <div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden;">
+                    <div id="progresso-barra"
+                         style="background:var(--blue);height:8px;border-radius:4px;
+                                width:{pct_init}%;transition:width .6s ease;"></div>
+                </div>
+                <div id="progresso-orgao"
+                     style="font-size:11px;color:var(--text-3);margin-top:5px;">
+                    {'&#128205; ' + orgao_init if orgao_init else ''}
+                </div>
+            </div>
+        </div>"""
         js_admin = """
 <script>
+function _atualizarBarra(concluidos, total, orgao) {
+    var pct = total > 0 ? Math.round(concluidos / total * 100) : 0;
+    document.getElementById('progresso-label').textContent =
+        total > 0 ? concluidos + ' / ' + total + ' processos' : 'Iniciando...';
+    document.getElementById('progresso-pct').textContent =
+        total > 0 ? pct + '%' : '';
+    document.getElementById('progresso-barra').style.width = pct + '%';
+    document.getElementById('progresso-orgao').textContent =
+        orgao ? '📍 ' + orgao : '';
+}
 function verificarStatus() {
     fetch('/api/admin/status-monitoramento')
         .then(r => r.json())
         .then(data => {
-            var btn = document.getElementById('btn-executar');
+            var btn  = document.getElementById('btn-executar');
             var span = document.getElementById('ultima-execucao');
+            var wrap = document.getElementById('progresso-wrap');
             if (data.running) {
-                btn.textContent = '⏳ Executando...';
-                btn.disabled = true;
+                btn.textContent   = '⏳ Executando...';
+                btn.disabled      = true;
                 btn.style.opacity = '0.6';
-                setTimeout(verificarStatus, 3000);
+                wrap.style.display = 'block';
+                _atualizarBarra(data.concluidos || 0, data.total || 0, data.orgao_atual || '');
+                setTimeout(verificarStatus, 2000);
             } else {
-                btn.textContent = '▶ Executar agora';
-                btn.disabled = false;
+                btn.textContent   = '▶ Executar agora';
+                btn.disabled      = false;
                 btn.style.opacity = '1';
+                wrap.style.display = 'none';
                 if (data.ultima_execucao) {
                     span.textContent = 'Última execução: ' + data.ultima_execucao;
                 }
@@ -638,11 +676,14 @@ function executarMonitoramento() {
         .then(r => r.json())
         .then(data => {
             if (data.ok) {
-                var btn = document.getElementById('btn-executar');
-                btn.textContent = '⏳ Executando...';
-                btn.disabled = true;
+                var btn  = document.getElementById('btn-executar');
+                var wrap = document.getElementById('progresso-wrap');
+                btn.textContent   = '⏳ Executando...';
+                btn.disabled      = true;
                 btn.style.opacity = '0.6';
-                setTimeout(verificarStatus, 3000);
+                wrap.style.display = 'block';
+                _atualizarBarra(0, 0, '');
+                setTimeout(verificarStatus, 2000);
             }
         })
         .catch(function(){});
@@ -2291,7 +2332,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 status = _ler_status_monitoramento()
                 ultima = buscar_ultima_execucao()
                 ultima_fmt = _fmt_data(ultima, hora=True) if ultima else None
-                return self._responder_json({"running": status.get("running", False), "ultima_execucao": ultima_fmt})
+                return self._responder_json({
+                    "running":       status.get("running", False),
+                    "ultima_execucao": ultima_fmt,
+                    "concluidos":    status.get("concluidos", 0),
+                    "total":         status.get("total", 0),
+                    "orgao_atual":   status.get("orgao_atual", ""),
+                })
 
             if rota == "/":
                 return self._responder_html(gerar_html_dashboard(sessao))

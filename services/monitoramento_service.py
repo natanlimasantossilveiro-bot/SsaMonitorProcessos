@@ -28,6 +28,20 @@ STATUS_ERRO_CONSULTA = "ERRO_CONSULTA"
 STATUS_PENDENTE_INTEGRACAO_CAPTCHA = "PENDENTE_INTEGRACAO_CAPTCHA"
 STATUS_CAPTCHA_RESOLVIDO_FLUXO_PENDENTE = "CAPTCHA_RESOLVIDO_FLUXO_PENDENTE"
 
+# Progresso da execução atual — atualizado durante o monitoramento
+_progresso = {"total": 0, "concluidos": 0, "orgao_atual": ""}
+
+_NOMES_ROBO = {
+    "atende_net": "AtendNet (Pinhais / Araucária)",
+    "curitiba": "Curitiba",
+    "sjp": "São José dos Pinhais",
+    "franco_rocha": "Franco da Rocha",
+    "caieiras": "Caieiras",
+    "esic": "eSIC",
+    "ponta_grossa": "Ponta Grossa",
+    "pinhais": "Pinhais",
+}
+
 
 def criar_resumo_execucao():
     return {
@@ -169,6 +183,7 @@ async def processar_processo_individual(processo, resumo, eventos_processos):
     if status == STATUS_SEM_ROBO_CONFIGURADO:
         registrar_orgao_sem_robo(resumo, processo)
 
+    _progresso["concluidos"] += 1
     return resultado
 
 
@@ -198,6 +213,7 @@ async def monitorar_processos_ativos():
 
     processos = listar_processos_ativos_com_orgao()
     resumo["TOTAL_PROCESSOS"] = len(processos)
+    _progresso.update({"total": len(processos), "concluidos": 0, "orgao_atual": ""})
 
     log.info(f"Iniciando monitoramento — {len(processos)} processo(s) ativos")
 
@@ -226,6 +242,7 @@ async def monitorar_processos_ativos():
     # ✅ EXECUÇÃO POR ROBÔ
     # ==========================================================
     for nome_robo, lista_processos in processos_por_robo.items():
+        _progresso["orgao_atual"] = _NOMES_ROBO.get(nome_robo, nome_robo)
 
         log.info(f"Processando robo: {nome_robo} | {len(lista_processos)} processo(s)")
 
@@ -293,6 +310,8 @@ async def monitorar_processos_ativos():
                         nome_robo="franco_rocha",
                         funcao_consulta=retorno_fixo,
                     )
+
+                    _progresso["concluidos"] += 1
 
             except Exception as e:
                 log.error(f"Erro no robo Franco da Rocha: {e}")
