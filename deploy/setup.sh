@@ -29,7 +29,9 @@ apt-get install -y -qq libasound2t64 2>/dev/null || apt-get install -y -qq libas
 
 # 2. Cria usuário de serviço (sem login)
 echo "[2/8] Criando usuário '$APP_USER'..."
-id -u "$APP_USER" &>/dev/null || useradd -r -s /bin/false "$APP_USER"
+id -u "$APP_USER" &>/dev/null || useradd -r -s /bin/false -m "$APP_USER"
+mkdir -p "/home/$APP_USER"
+chown "$APP_USER":"$APP_USER" "/home/$APP_USER"
 
 # 3. Cria diretório da aplicação
 echo "[3/8] Configurando diretório $APP_DIR..."
