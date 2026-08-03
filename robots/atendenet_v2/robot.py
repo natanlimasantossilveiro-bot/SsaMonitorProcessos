@@ -97,10 +97,10 @@ class RobotAtendeNetV2:
             return {"status": "CODIGO_VERIFICADOR_AUSENTE"}
 
         browser = await uc.start(
-            headless=False,
-            no_sandbox=True,
+            headless=True,
+            sandbox=False,
             browser_args=[
-                "--window-position=-32000,-32000",
+                "--disable-dev-shm-usage",
                 "--window-size=1280,800",
             ],
         )
