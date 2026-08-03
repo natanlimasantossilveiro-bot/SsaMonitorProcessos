@@ -23,9 +23,11 @@ def _set_status(running: bool):
         agora = datetime.now().isoformat()
         if running:
             status.update({"running": True, "iniciado_em": agora, "source": "manual",
+                           "pid": os.getpid(),
                            "concluidos": 0, "total": 0, "orgao_atual": ""})
         else:
             status.update({"running": False, "finalizado_em": agora,
+                           "pid": None,
                            "concluidos": 0, "total": 0, "orgao_atual": ""})
         with open(_STATUS_FILE, "w") as f:
             json.dump(status, f)

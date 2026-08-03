@@ -69,7 +69,26 @@ def _ler_status_monitoramento():
     try:
         if os.path.exists(_STATUS_FILE):
             with open(_STATUS_FILE) as f:
-                return json.load(f)
+                status = json.load(f)
+            # Se marcado como running mas o processo não existe mais, auto-reseta
+            if status.get("running"):
+                pid = status.get("pid")
+                processo_vivo = False
+                if pid:
+                    try:
+                        os.kill(pid, 0)  # sinal 0 = só testa existência
+                        processo_vivo = True
+                    except (OSError, ProcessLookupError):
+                        processo_vivo = False
+                if not processo_vivo:
+                    status["running"] = False
+                    status["orgao_atual"] = ""
+                    try:
+                        with open(_STATUS_FILE, "w") as f:
+                            json.dump(status, f)
+                    except Exception:
+                        pass
+            return status
     except Exception:
         pass
     return {"running": False}
