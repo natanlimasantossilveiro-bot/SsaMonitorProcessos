@@ -51,6 +51,8 @@ from dashboard.dashboard_repository import (
     buscar_movimentacoes_do_processo,
     buscar_historico_consultas_do_processo,
     buscar_movimentacoes_do_mes,
+    buscar_filtros_relatorio,
+    buscar_dados_relatorio,
 )
 
 from dashboard.dashboard_html import gerar_linhas_tabela
@@ -436,6 +438,7 @@ def _topbar(pagina_atual="/", usuario=None):
         ("/", "Dashboard"),
         ("/calendario", "Calendário"),
         ("/movimentacoes-hoje", "Movimentações Hoje"),
+        ("/relatorio", "Relatório"),
     ]
     if usuario and usuario.get("is_admin"):
         links.append(("/admin/usuarios", "Usuários"))
@@ -1519,6 +1522,457 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
 
 
 # ─────────────────────────────────────────────
+# PÁGINA: /relatorio  — filtros
+# ─────────────────────────────────────────────
+def gerar_html_relatorio(orgaos, empresas, statuses, usuario=None):
+    hoje = date.today()
+    data_fim_d = str(hoje)
+    data_inicio_d = str(hoje.replace(day=1))
+
+    def _opts(lista, placeholder):
+        h = f"<option value=''>{placeholder}</option>"
+        for item in lista:
+            h += f"<option value='{escape(item)}'>{escape(item)}</option>"
+        return h
+
+    sel_style = ("padding:8px 12px;border:1px solid var(--border);border-radius:8px;"
+                 "background:var(--bg-card);color:var(--text-1);font-size:13px;"
+                 "cursor:pointer;min-width:170px;font-family:inherit;")
+    inp_style = ("padding:8px 12px;border:1px solid var(--border);border-radius:8px;"
+                 "background:var(--bg-card);color:var(--text-1);font-size:13px;font-family:inherit;")
+    lbl_style = "display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:5px;"
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Relatório · SSA Monitor</title>
+    {_JS_THEME_INIT}
+    <style>{CSS_BASE}</style>
+</head>
+<body>
+    {_topbar("/relatorio", usuario)}
+    <div class="page-content">
+        <div class="page-header">
+            <h1>Relatório de Processos</h1>
+            <div class="subtitulo">Filtre por período, prefeitura, empresa e status · visualize ou exporte em Excel</div>
+        </div>
+
+        <section>
+            <h2>Filtros</h2>
+            <form id="frm" style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;">
+                <div>
+                    <label style="{lbl_style}">Data inicial</label>
+                    <input type="date" name="data_inicio" value="{data_inicio_d}" max="{data_fim_d}" style="{inp_style}">
+                </div>
+                <div>
+                    <label style="{lbl_style}">Data final</label>
+                    <input type="date" name="data_fim" value="{data_fim_d}" max="{data_fim_d}" style="{inp_style}">
+                </div>
+                <div>
+                    <label style="{lbl_style}">Prefeitura</label>
+                    <select name="orgao" style="{sel_style}">{_opts(orgaos, 'Todas as prefeituras')}</select>
+                </div>
+                <div>
+                    <label style="{lbl_style}">Empresa / Cliente</label>
+                    <select name="empresa" style="{sel_style}">{_opts(empresas, 'Todas as empresas')}</select>
+                </div>
+                <div>
+                    <label style="{lbl_style}">Status</label>
+                    <select name="status" style="{sel_style}">{_opts(statuses, 'Todos os status')}</select>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button type="button" onclick="ir('/relatorio/visualizar')" class="btn">
+                        &#128438; Visualizar Relatório
+                    </button>
+                    <button type="button" onclick="ir('/relatorio/exportar-excel')" class="btn secundario">
+                        &#128229; Exportar Excel
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section style="background:var(--bg-th);border-style:dashed;">
+            <h2 style="margin-bottom:10px;">O que cada opção gera</h2>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                <div>
+                    <strong style="font-size:13px;">&#128438; Visualizar Relatório</strong>
+                    <p style="color:var(--text-2);font-size:13px;margin-top:4px;">
+                        Abre uma página formatada, agrupada por prefeitura, com as movimentações
+                        detectadas no período. Pode ser impressa ou salva como PDF pelo navegador.
+                    </p>
+                </div>
+                <div>
+                    <strong style="font-size:13px;">&#128229; Exportar Excel</strong>
+                    <p style="color:var(--text-2);font-size:13px;margin-top:4px;">
+                        Baixa um arquivo <code>.xlsx</code> com 3 abas: <em>Resumo</em> (totais por prefeitura),
+                        <em>Movimentações</em> (lista detalhada) e <em>Processos</em> (visão geral de todos).
+                    </p>
+                </div>
+            </div>
+        </section>
+    </div>
+    <script>
+    function ir(base) {{
+        const p = new URLSearchParams(new FormData(document.getElementById('frm')));
+        window.location = base + '?' + p.toString();
+    }}
+    </script>
+    {_JS_THEME_TOGGLE}
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────
+# PÁGINA: /relatorio/visualizar  — relatório imprimível
+# ─────────────────────────────────────────────
+def gerar_html_relatorio_visualizar(por_orgao, processos, filtros, usuario=None):
+    data_inicio = filtros.get('data_inicio', '')
+    data_fim    = filtros.get('data_fim', '')
+    orgao_f     = filtros.get('orgao', '')
+    empresa_f   = filtros.get('empresa', '')
+    status_f    = filtros.get('status', '')
+
+    total_processos = len(processos)
+    com_mov   = sum(1 for p in processos if p['movimentacoes'])
+    sem_mov   = total_processos - com_mov
+    total_mov = sum(len(p['movimentacoes']) for p in processos)
+
+    filtros_desc = [v for v in [
+        f"Prefeitura: {orgao_f}" if orgao_f else "",
+        f"Empresa: {empresa_f}" if empresa_f else "",
+        f"Status: {status_f}" if status_f else "",
+    ] if v]
+    filtros_txt = " · ".join(filtros_desc) if filtros_desc else ""
+
+    qs_parts = "&".join(f"{k}={escape(v)}" for k, v in filtros.items() if v)
+
+    secoes = ""
+    for orgao_nome, procs in sorted(por_orgao.items()):
+        com_mov_org = sum(1 for p in procs if p['movimentacoes'])
+
+        # Processos COM movimentação
+        linhas_com = ""
+        for p in [x for x in procs if x['movimentacoes']]:
+            num  = escape(str(p.get('numero_processo') or ''))
+            emp  = escape(str(p.get('empresa') or ''))
+            st   = str(p.get('status_atual') or '')
+            n_m  = len(p['movimentacoes'])
+            obj  = escape(str(p.get('objeto') or ''))
+
+            movs_html = ""
+            for m in p['movimentacoes'][:15]:
+                dt   = escape(_fmt_data(m.get('data_movimento')))
+                desc = escape(str(m.get('descricao') or '').strip()[:300])
+                if not desc or len(desc) < 5:
+                    continue
+                movs_html += f"""
+                <tr style="background:var(--bg-th);">
+                    <td style="font-size:12px;color:var(--text-2);padding:4px 10px;white-space:nowrap;">{dt}</td>
+                    <td style="font-size:12px;padding:4px 10px;white-space:normal;max-width:480px;">{desc}</td>
+                </tr>"""
+
+            obj_row = (f"<tr><td colspan='4' style='padding:2px 12px 6px;font-size:12px;"
+                       f"color:var(--text-2);white-space:normal;max-width:600px;'>"
+                       f"<em>{obj}</em></td></tr>") if obj else ""
+
+            linhas_com += f"""
+            <tr style="background:#f0fdf4;">
+                <td style="font-weight:700;padding:8px 12px;border-left:3px solid var(--green);">{num}</td>
+                <td style="padding:8px 12px;">{emp}</td>
+                <td style="padding:8px 12px;">{_badge_status(st)}</td>
+                <td style="padding:8px 12px;text-align:center;font-weight:700;color:var(--green);">{n_m}</td>
+            </tr>
+            {obj_row}
+            <tr>
+                <td colspan="4" style="padding:0 12px 10px 28px;">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead><tr>
+                            <th style="font-size:11px;color:var(--text-3);text-align:left;padding:3px 10px;white-space:nowrap;">Data mov.</th>
+                            <th style="font-size:11px;color:var(--text-3);text-align:left;padding:3px 10px;">Descrição</th>
+                        </tr></thead>
+                        <tbody>{movs_html if movs_html else '<tr><td colspan="2" style="color:var(--text-3);padding:4px 10px;font-size:12px;">Sem descrição disponível.</td></tr>'}</tbody>
+                    </table>
+                </td>
+            </tr>"""
+
+        # Processos SEM movimentação
+        linhas_sem = ""
+        for p in [x for x in procs if not x['movimentacoes']]:
+            num    = escape(str(p.get('numero_processo') or ''))
+            emp    = escape(str(p.get('empresa') or ''))
+            st     = str(p.get('status_atual') or '')
+            dt_mov = escape(_fmt_data(p.get('data_ultimo_movimento')))
+            linhas_sem += f"""
+            <tr style="opacity:.55;">
+                <td style="padding:5px 12px;">{num}</td>
+                <td style="padding:5px 12px;">{emp}</td>
+                <td style="padding:5px 12px;">{_badge_status(st)}</td>
+                <td style="padding:5px 12px;color:var(--text-3);">{dt_mov}</td>
+            </tr>"""
+
+        bloco_com = ""
+        if linhas_com:
+            bloco_com = f"""
+            <p style="font-size:12px;font-weight:600;color:var(--green);margin:14px 0 6px;">
+                &#10004; Com movimentação no período ({com_mov_org})
+            </p>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+                <thead><tr>
+                    <th style="text-align:left;padding:7px 12px;background:var(--bg-th);font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;">Processo</th>
+                    <th style="text-align:left;padding:7px 12px;background:var(--bg-th);font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;">Empresa</th>
+                    <th style="text-align:left;padding:7px 12px;background:var(--bg-th);font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;">Status</th>
+                    <th style="text-align:center;padding:7px 12px;background:var(--bg-th);font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;">Movs.</th>
+                </tr></thead>
+                <tbody>{linhas_com}</tbody>
+            </table>"""
+
+        bloco_sem = ""
+        sem_count = len(procs) - com_mov_org
+        if linhas_sem:
+            bloco_sem = f"""
+            <details style="margin-top:6px;" class="sem-mov">
+                <summary style="font-size:12px;color:var(--text-3);cursor:pointer;font-weight:500;user-select:none;">
+                    &#8212; Sem movimentação no período ({sem_count}) — clique para expandir
+                </summary>
+                <table style="width:100%;border-collapse:collapse;margin-top:8px;">
+                    <thead><tr>
+                        <th style="text-align:left;padding:6px 12px;background:var(--bg-th);font-size:11px;color:var(--text-3);">Processo</th>
+                        <th style="text-align:left;padding:6px 12px;background:var(--bg-th);font-size:11px;color:var(--text-3);">Empresa</th>
+                        <th style="text-align:left;padding:6px 12px;background:var(--bg-th);font-size:11px;color:var(--text-3);">Status</th>
+                        <th style="text-align:left;padding:6px 12px;background:var(--bg-th);font-size:11px;color:var(--text-3);">Último mov.</th>
+                    </tr></thead>
+                    <tbody>{linhas_sem}</tbody>
+                </table>
+            </details>"""
+
+        secoes += f"""
+        <section style="page-break-inside:avoid;">
+            <h2 style="font-size:15px;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:8px;margin-bottom:4px;">
+                {escape(orgao_nome)}
+                <span style="font-size:12px;font-weight:400;color:var(--text-2);margin-left:8px;">
+                    {len(procs)} processo{'s' if len(procs) != 1 else ''} &middot; {com_mov_org} com movimentação
+                </span>
+            </h2>
+            {bloco_com}
+            {bloco_sem}
+        </section>"""
+
+    if not secoes:
+        secoes = '<section><p class="vazio">Nenhum processo encontrado para os filtros selecionados.</p></section>'
+
+    di_fmt  = _fmt_data(data_inicio) if data_inicio else "—"
+    df_fmt  = _fmt_data(data_fim)    if data_fim    else "—"
+    agora   = datetime.now().strftime("%d/%m/%Y - %H:%M")
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Relatório · SSA Monitor</title>
+    {_JS_THEME_INIT}
+    <style>{CSS_BASE}
+    @media print {{
+        .topbar, .no-print {{ display: none !important; }}
+        body {{ background: white !important; }}
+        section {{ page-break-inside: avoid; border: none !important; box-shadow: none !important; }}
+        .page-content {{ max-width: 100% !important; padding: 0 !important; }}
+        details.sem-mov {{ display: block; }}
+        details.sem-mov > summary {{ display: none; }}
+        details.sem-mov > table {{ display: table !important; }}
+    }}
+    </style>
+</head>
+<body>
+    {_topbar("/relatorio", usuario)}
+    <div class="page-content">
+
+        <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <a href="/relatorio" class="btn secundario">&larr; Voltar aos filtros</a>
+                <a href="/relatorio/exportar-excel?{qs_parts}" class="btn secundario">&#128229; Exportar Excel</a>
+            </div>
+            <button onclick="window.print()" class="btn">&#128438; Imprimir / Salvar PDF</button>
+        </div>
+
+        <!-- CABEÇALHO IMPRIMÍVEL -->
+        <div style="text-align:center;margin-bottom:24px;padding:22px 24px;
+                    background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);">
+            <div style="font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.12em;
+                        text-transform:uppercase;margin-bottom:6px;">SSA Monitor Processos</div>
+            <h1 style="font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.3px;">
+                Relatório de Monitoramento de Processos
+            </h1>
+            <div style="color:var(--text-2);font-size:14px;">
+                Período: <strong>{di_fmt}</strong> a <strong>{df_fmt}</strong>
+            </div>
+            {f'<div style="color:var(--text-2);font-size:13px;margin-top:3px;">{escape(filtros_txt)}</div>' if filtros_txt else ''}
+            <div style="color:var(--text-3);font-size:12px;margin-top:8px;">Gerado em {agora}</div>
+        </div>
+
+        <!-- CARDS DE RESUMO -->
+        <div class="cards" style="grid-template-columns:repeat(4,minmax(130px,1fr));margin-bottom:24px;">
+            <div class="card"><h2>{total_processos}</h2><p>Processos analisados</p></div>
+            <div class="card sucesso"><h2>{com_mov}</h2><p>Com movimentação</p></div>
+            <div class="card neutro"><h2>{sem_mov}</h2><p>Sem movimentação</p></div>
+            <div class="card alerta"><h2>{total_mov}</h2><p>Total de movimentações</p></div>
+        </div>
+
+        <!-- SEÇÕES POR PREFEITURA -->
+        {secoes}
+
+        <div class="footer no-print">SSA Monitor Processos · Relatório</div>
+    </div>
+    {_JS_THEME_TOGGLE}
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────
+# GERADOR: Excel (.xlsx)
+# ─────────────────────────────────────────────
+def _gerar_excel_relatorio(por_orgao, processos, filtros):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from io import BytesIO
+
+    wb = Workbook()
+
+    AZUL    = "0F172A"
+    BORDA_C = Side(style='thin', color='E2E8F0')
+    brd     = Border(left=BORDA_C, right=BORDA_C, top=BORDA_C, bottom=BORDA_C)
+
+    def hdr(cell, bg=AZUL):
+        cell.font      = Font(bold=True, color="FFFFFF", size=10)
+        cell.fill      = PatternFill("solid", fgColor=bg)
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border    = brd
+
+    def dado(cell, bold=False, cor=None):
+        cell.font      = Font(bold=bold, color=cor or "0F172A", size=10)
+        cell.alignment = Alignment(vertical='center', wrap_text=True)
+        cell.border    = brd
+
+    data_inicio = filtros.get('data_inicio', '')
+    data_fim    = filtros.get('data_fim', '')
+    total       = len(processos)
+    com_mov     = sum(1 for p in processos if p['movimentacoes'])
+    total_movs  = sum(len(p['movimentacoes']) for p in processos)
+
+    # ── Aba 1: Resumo ──────────────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = "Resumo"
+
+    ws1.merge_cells('A1:C1')
+    ws1['A1'] = "SSA Monitor Processos — Relatório de Monitoramento"
+    ws1['A1'].font      = Font(bold=True, size=13, color=AZUL)
+    ws1['A1'].alignment = Alignment(horizontal='center')
+    ws1.row_dimensions[1].height = 24
+
+    for r, (k, v) in enumerate([
+        ("Período", f"{_fmt_data(data_inicio)} a {_fmt_data(data_fim)}"),
+        ("Gerado em", datetime.now().strftime("%d/%m/%Y - %H:%M")),
+        ("Prefeitura", filtros.get('orgao') or "Todas"),
+        ("Empresa", filtros.get('empresa') or "Todas"),
+        ("Status", filtros.get('status') or "Todos"),
+    ], start=2):
+        ws1.cell(r, 1, k).font = Font(bold=True, size=10)
+        ws1.cell(r, 2, v).font = Font(size=10)
+
+    ws1.append([])
+
+    # Totais gerais
+    for col, h in enumerate(["Indicador", "Valor"], 1):
+        hdr(ws1.cell(ws1.max_row + 1, col, h))
+    for label, val in [
+        ("Total de processos analisados", total),
+        ("Com movimentação no período",   com_mov),
+        ("Sem movimentação no período",   total - com_mov),
+        ("Total de movimentações detectadas", total_movs),
+    ]:
+        ws1.append([label, val])
+        row = ws1.max_row
+        dado(ws1.cell(row, 1))
+        dado(ws1.cell(row, 2), bold=True)
+
+    ws1.append([])
+
+    # Por prefeitura
+    for col, h in enumerate(["Prefeitura", "Processos", "Com mov.", "Sem mov.", "Movimentações"], 1):
+        hdr(ws1.cell(ws1.max_row + 1, col, h))
+    for orgao_nome, procs in sorted(por_orgao.items()):
+        cm = sum(1 for p in procs if p['movimentacoes'])
+        tm = sum(len(p['movimentacoes']) for p in procs)
+        ws1.append([orgao_nome, len(procs), cm, len(procs) - cm, tm])
+        row = ws1.max_row
+        for col in range(1, 6):
+            dado(ws1.cell(row, col), bold=(col == 3 and cm > 0), cor=("166534" if (col == 3 and cm > 0) else None))
+
+    for col, w in zip(range(1, 6), [32, 12, 12, 12, 16]):
+        ws1.column_dimensions[get_column_letter(col)].width = w
+    ws1.freeze_panes = 'A2'
+
+    # ── Aba 2: Movimentações ───────────────────────────────────────
+    ws2 = wb.create_sheet("Movimentações")
+    h2 = ["Prefeitura", "Empresa", "Nº Processo", "Status", "Data Mov.", "Descrição"]
+    for col, h in enumerate(h2, 1):
+        hdr(ws2.cell(1, col, h))
+
+    for p in processos:
+        for m in p['movimentacoes']:
+            ws2.append([
+                p.get('orgao', ''),
+                p.get('empresa', ''),
+                p.get('numero_processo', ''),
+                p.get('status_atual', ''),
+                str(m.get('data_movimento', '')),
+                str(m.get('descricao', '') or '').strip()[:500],
+            ])
+            row = ws2.max_row
+            for col in range(1, 7):
+                dado(ws2.cell(row, col))
+
+    if ws2.max_row == 1:
+        ws2.append(["Nenhuma movimentação no período selecionado."])
+
+    for col, w in zip(range(1, 7), [22, 20, 14, 18, 13, 70]):
+        ws2.column_dimensions[get_column_letter(col)].width = w
+    ws2.freeze_panes = 'A2'
+
+    # ── Aba 3: Processos ───────────────────────────────────────────
+    ws3 = wb.create_sheet("Processos")
+    h3 = ["Prefeitura", "Empresa", "Nº Processo", "Status", "Movs. no período", "Último mov.", "Objeto"]
+    for col, h in enumerate(h3, 1):
+        hdr(ws3.cell(1, col, h))
+
+    for p in processos:
+        n_m = len(p['movimentacoes'])
+        ws3.append([
+            p.get('orgao', ''),
+            p.get('empresa', ''),
+            p.get('numero_processo', ''),
+            p.get('status_atual', ''),
+            n_m,
+            str(p.get('data_ultimo_movimento', '') or ''),
+            str(p.get('objeto', '') or '').strip()[:300],
+        ])
+        row = ws3.max_row
+        for col in range(1, 8):
+            dado(ws3.cell(row, col), bold=(col == 5 and n_m > 0), cor=("166534" if (col == 5 and n_m > 0) else None))
+
+    for col, w in zip(range(1, 8), [22, 20, 14, 18, 16, 14, 50]):
+        ws3.column_dimensions[get_column_letter(col)].width = w
+    ws3.freeze_panes = 'A2'
+
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+# ─────────────────────────────────────────────
 # CSS da tela de autenticação (fora do layout com topbar)
 # ─────────────────────────────────────────────
 CSS_AUTH = """
@@ -1776,6 +2230,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(corpo)
 
+    def _responder_arquivo(self, dados: bytes, content_type: str, nome_arquivo: str):
+        self.send_response(200)
+        self.send_header("Content-type", content_type)
+        self.send_header("Content-Disposition", f'attachment; filename="{nome_arquivo}"')
+        self.send_header("Content-Length", str(len(dados)))
+        self.end_headers()
+        self.wfile.write(dados)
+
     def _redirecionar(self, local, cookies=None):
         self.send_response(302)
         self.send_header("Location", local)
@@ -1858,6 +2320,43 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 if html is None:
                     return self._negar(404, "Processo não encontrado.")
                 return self._responder_html(html)
+
+            if rota == "/relatorio":
+                orgaos, empresas, statuses = buscar_filtros_relatorio()
+                return self._responder_html(gerar_html_relatorio(orgaos, empresas, statuses, sessao))
+
+            if rota in ("/relatorio/visualizar", "/relatorio/exportar-excel"):
+                hoje_str = str(date.today())
+                def _qs(k, default):
+                    v = qs.get(k, [default])[0]
+                    return v if v else default
+                filtros = {
+                    'data_inicio': _qs('data_inicio', str(date.today().replace(day=1))),
+                    'data_fim':    _qs('data_fim',    hoje_str),
+                    'orgao':       _qs('orgao',       ''),
+                    'empresa':     _qs('empresa',     ''),
+                    'status':      _qs('status',      ''),
+                }
+                for k in ('data_inicio', 'data_fim'):
+                    try:
+                        date.fromisoformat(filtros[k])
+                    except ValueError:
+                        filtros[k] = hoje_str
+                por_orgao, processos = buscar_dados_relatorio(
+                    filtros['data_inicio'], filtros['data_fim'],
+                    filtros['orgao'] or None, filtros['empresa'] or None, filtros['status'] or None,
+                )
+                if rota == "/relatorio/visualizar":
+                    return self._responder_html(
+                        gerar_html_relatorio_visualizar(por_orgao, processos, filtros, sessao)
+                    )
+                dados_xlsx = _gerar_excel_relatorio(por_orgao, processos, filtros)
+                nome = f"relatorio_{filtros['data_inicio']}_{filtros['data_fim']}.xlsx"
+                return self._responder_arquivo(
+                    dados_xlsx,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    nome,
+                )
 
             return self._negar(404, "Página não encontrada.")
 

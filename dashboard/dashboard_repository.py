@@ -387,6 +387,101 @@ def buscar_movimentacoes_do_processo(processo_id: int):
     return resultado
 
 
+# ─────────────────────────────────────────────
+# Relatório
+# ─────────────────────────────────────────────
+
+def buscar_filtros_relatorio():
+    """Listas de prefeituras, empresas e status para os dropdowns do relatório."""
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT DISTINCT o.nome FROM orgaos o
+        INNER JOIN processos p ON p.orgao_id = o.id
+        WHERE p.ativo = TRUE ORDER BY o.nome
+    """)
+    orgaos = [r['nome'] for r in cursor.fetchall()]
+    cursor.execute("""
+        SELECT DISTINCT empresa FROM processos
+        WHERE ativo = TRUE AND empresa IS NOT NULL AND empresa != ''
+        ORDER BY empresa
+    """)
+    empresas = [r['empresa'] for r in cursor.fetchall()]
+    cursor.execute("""
+        SELECT DISTINCT status_atual FROM processos
+        WHERE ativo = TRUE AND status_atual IS NOT NULL AND status_atual != ''
+        ORDER BY status_atual
+    """)
+    statuses = [r['status_atual'] for r in cursor.fetchall()]
+    cursor.close()
+    conexao.close()
+    return orgaos, empresas, statuses
+
+
+def buscar_dados_relatorio(data_inicio, data_fim, orgao=None, empresa=None, status=None):
+    """
+    Processos ativos com movimentações no período informado.
+    Retorna (dict agrupado por prefeitura, list de todos os processos).
+    """
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+
+    where = ["p.ativo = TRUE"]
+    params = []
+    if orgao:
+        where.append("o.nome = %s")
+        params.append(orgao)
+    if empresa:
+        where.append("p.empresa = %s")
+        params.append(empresa)
+    if status:
+        where.append("p.status_atual = %s")
+        params.append(status)
+
+    cursor.execute(f"""
+        SELECT p.id, p.numero_processo, p.empresa, p.status_atual,
+               p.objeto, p.data_ultimo_movimento, o.nome AS orgao
+        FROM processos p
+        INNER JOIN orgaos o ON p.orgao_id = o.id
+        WHERE {' AND '.join(where)}
+        ORDER BY o.nome, p.empresa, p.numero_processo
+    """, params)
+    processos = cursor.fetchall()
+
+    if processos:
+        pids = [p['id'] for p in processos]
+        fmt = ','.join(['%s'] * len(pids))
+        cursor.execute(f"""
+            SELECT m.processo_id, m.data_movimento, m.descricao,
+                   DATE(m.capturado_em) AS data_captura
+            FROM movimentacoes m
+            WHERE m.processo_id IN ({fmt})
+              AND m.data_movimento BETWEEN %s AND %s
+              AND m.descricao IS NOT NULL
+              AND LENGTH(TRIM(m.descricao)) > 5
+            ORDER BY m.processo_id, m.data_movimento DESC, m.id DESC
+        """, pids + [data_inicio, data_fim])
+        movs = cursor.fetchall()
+    else:
+        movs = []
+
+    cursor.close()
+    conexao.close()
+
+    movs_por_proc = {}
+    for m in movs:
+        movs_por_proc.setdefault(m['processo_id'], []).append(m)
+
+    for p in processos:
+        p['movimentacoes'] = movs_por_proc.get(p['id'], [])
+
+    por_orgao = {}
+    for p in processos:
+        por_orgao.setdefault(p['orgao'], []).append(p)
+
+    return por_orgao, processos
+
+
 def buscar_historico_consultas_do_processo(processo_id: int, limite: int = 20):
     """Retorna as últimas N consultas registradas para um processo."""
     conexao = criar_conexao()
