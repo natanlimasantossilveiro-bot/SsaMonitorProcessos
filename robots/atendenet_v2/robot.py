@@ -99,6 +99,7 @@ class RobotAtendeNetV2:
         browser = await uc.start(
             headless=True,
             sandbox=False,
+            browser_executable_path="/usr/bin/google-chrome",
             browser_args=[
                 "--disable-dev-shm-usage",
                 "--window-size=1280,800",
