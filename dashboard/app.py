@@ -1634,7 +1634,7 @@ def gerar_html_processos(processos, orgaos, empresas, statuses,
             <td style='font-size:12px;color:var(--text-2);'>{ult_m}</td>
         </tr>"""
 
-    topbar = _gerar_topbar(usuario, ativa="/processos")
+    topbar = _topbar("/processos", usuario)
     total  = len(processos)
 
     return f"""<!DOCTYPE html>
