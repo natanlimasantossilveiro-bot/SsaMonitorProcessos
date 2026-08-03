@@ -1881,12 +1881,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if not sessao:
                 return self._redirecionar("/login")
 
-            if not auth.csrf_valido(token, dados.get("csrf", "")):
-                return self._negar(400, "Sessão expirada, recarregue a página e tente novamente.")
-
-            if rota == "/trocar-senha":
-                return self._processar_trocar_senha(dados, sessao)
-
+            # Rotas de API JSON não usam CSRF — a sessão via cookie já é suficiente
             if rota == "/api/admin/executar-monitoramento":
                 if not sessao.get("is_admin"):
                     return self._negar()
@@ -1895,6 +1890,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     return self._responder_json({"ok": False, "message": "Já está em execução"})
                 subprocess.Popen([sys.executable, _SCRIPT_MANUAL], cwd=_BASE_DIR)
                 return self._responder_json({"ok": True, "message": "Monitoramento iniciado"})
+
+            if not auth.csrf_valido(token, dados.get("csrf", "")):
+                return self._negar(400, "Sessão expirada, recarregue a página e tente novamente.")
+
+            if rota == "/trocar-senha":
+                return self._processar_trocar_senha(dados, sessao)
 
             if rota.startswith("/admin/usuarios"):
                 if not sessao.get("is_admin"):
