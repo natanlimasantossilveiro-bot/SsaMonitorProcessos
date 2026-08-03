@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 import nodriver as uc
+from pyvirtualdisplay import Display
 
 from services.captcha_api_client import (
     enviar_captcha_para_api,
@@ -96,15 +97,22 @@ class RobotAtendeNetV2:
             )
             return {"status": "CODIGO_VERIFICADOR_AUSENTE"}
 
-        browser = await uc.start(
-            headless=True,
-            sandbox=False,
-            browser_executable_path="/usr/bin/google-chrome",
-            browser_args=[
-                "--disable-dev-shm-usage",
-                "--window-size=1280,800",
-            ],
-        )
+        display = Display(visible=False, size=(1280, 800))
+        display.start()
+
+        try:
+            browser = await uc.start(
+                headless=False,
+                sandbox=False,
+                browser_executable_path="/usr/bin/google-chrome",
+                browser_args=[
+                    "--disable-dev-shm-usage",
+                    "--window-size=1280,800",
+                ],
+            )
+        except Exception:
+            display.stop()
+            raise
 
         try:
             # ── Navega diretamente (sem sessao) — formulario anonimo ─────────
@@ -428,6 +436,7 @@ class RobotAtendeNetV2:
 
         finally:
             browser.stop()
+            display.stop()
 
     async def _resolver_modal_verificacao_acesso(self, tab, url):
         """
