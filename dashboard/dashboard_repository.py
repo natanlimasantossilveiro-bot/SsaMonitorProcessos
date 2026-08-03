@@ -27,6 +27,14 @@ def executar_query_unica(query):
     return resultado
 
 
+def buscar_ultima_execucao():
+    """Retorna a data/hora da última consulta registrada no histórico."""
+    resultado = executar_query_unica(
+        "SELECT MAX(data_consulta) AS ultima FROM historico_consultas"
+    )
+    return resultado["ultima"] if resultado else None
+
+
 def buscar_total_processos():
     resultado = executar_query_unica(
         "SELECT COUNT(*) AS total FROM processos WHERE ativo = TRUE;"

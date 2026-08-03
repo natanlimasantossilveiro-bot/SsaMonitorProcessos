@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 
 from database.repositories import (
@@ -595,7 +595,7 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
     }
 
 async def scheduler_monitoramento():
-    log.info("Modo automatico iniciado — executa a cada hora cheia")
+    log.info("Modo automatico iniciado — executa todo dia as 08h00")
 
     while True:
         agora = datetime.now()
@@ -607,9 +607,11 @@ async def scheduler_monitoramento():
             log.error(f"Erro na execucao automatica: {e}")
 
         agora = datetime.now()
-        segundos_passados = agora.minute * 60 + agora.second
-        segundos_restantes = 3600 - segundos_passados
+        proximo = agora.replace(hour=8, minute=0, second=0, microsecond=0)
+        if proximo <= agora:
+            proximo += timedelta(days=1)
 
-        log.info(f"Proxima execucao em {segundos_restantes}s ({segundos_restantes // 60}min)")
+        segundos_restantes = int((proximo - agora).total_seconds())
+        log.info(f"Proxima execucao: {proximo.strftime('%Y-%m-%d %H:%M:%S')} (em {segundos_restantes // 3600}h{(segundos_restantes % 3600) // 60}min)")
 
         await asyncio.sleep(segundos_restantes)

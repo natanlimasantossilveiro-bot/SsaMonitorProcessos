@@ -1,4 +1,6 @@
+import json
 import os
+import subprocess
 import sys
 from datetime import date, datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -29,6 +31,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from dashboard import auth, auth_repository
 from utils.logger import get_logger
 from dashboard.dashboard_repository import (
+    buscar_ultima_execucao,
     buscar_total_processos,
     buscar_processos_monitorados,
     buscar_processos_sem_robo,
@@ -54,6 +57,20 @@ from dashboard.dashboard_html import gerar_linhas_tabela
 
 HOST = os.getenv("DASHBOARD_HOST", "localhost")
 PORTA = int(os.getenv("DASHBOARD_PORT", "8000"))
+
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_STATUS_FILE = os.path.join(_BASE_DIR, ".monitor_status.json")
+_SCRIPT_MANUAL = os.path.join(_BASE_DIR, "services", "executar_monitoramento_manual.py")
+
+
+def _ler_status_monitoramento():
+    try:
+        if os.path.exists(_STATUS_FILE):
+            with open(_STATUS_FILE) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {"running": False}
 
 # ─────────────────────────────────────────────
 # CSS compartilhado
@@ -514,6 +531,7 @@ def gerar_html_dashboard(usuario=None):
     ultimas_consultas     = buscar_ultimas_consultas()
     mov_por_orgao         = buscar_movimentacoes_hoje_por_orgao()
     historico_7           = buscar_historico_7_dias()
+    ultima_execucao       = buscar_ultima_execucao()
 
     # Linhas da tabela de status com badges
     html_status = ""
@@ -570,6 +588,67 @@ def gerar_html_dashboard(usuario=None):
 
     html_calendario = _gerar_calendario_7_dias(historico_7)
 
+    ultima_str = _fmt_data(ultima_execucao, hora=True) if ultima_execucao else "—"
+
+    is_admin = usuario and usuario.get("is_admin")
+    status_mon = _ler_status_monitoramento() if is_admin else {}
+    running = status_mon.get("running", False)
+    btn_label = "⏳ Executando..." if running else "▶ Executar agora"
+    btn_disabled = "disabled" if running else ""
+
+    btn_executar_html = ""
+    js_admin = ""
+    if is_admin:
+        btn_executar_html = f"""
+        <button id="btn-executar" onclick="executarMonitoramento()" {btn_disabled}
+                style="background:var(--blue);color:#fff;border:none;border-radius:8px;
+                       padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;
+                       opacity:{0.6 if running else 1};">
+            {btn_label}
+        </button>"""
+        js_admin = """
+<script>
+function verificarStatus() {
+    fetch('/api/admin/status-monitoramento')
+        .then(r => r.json())
+        .then(data => {
+            var btn = document.getElementById('btn-executar');
+            var span = document.getElementById('ultima-execucao');
+            if (data.running) {
+                btn.textContent = '⏳ Executando...';
+                btn.disabled = true;
+                btn.style.opacity = '0.6';
+                setTimeout(verificarStatus, 3000);
+            } else {
+                btn.textContent = '▶ Executar agora';
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                if (data.ultima_execucao) {
+                    span.textContent = 'Última execução: ' + data.ultima_execucao;
+                }
+            }
+        })
+        .catch(function(){});
+}
+function executarMonitoramento() {
+    fetch('/api/admin/executar-monitoramento', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                var btn = document.getElementById('btn-executar');
+                btn.textContent = '⏳ Executando...';
+                btn.disabled = true;
+                btn.style.opacity = '0.6';
+                setTimeout(verificarStatus, 3000);
+            }
+        })
+        .catch(function(){});
+}
+document.addEventListener('DOMContentLoaded', function() {
+    if (""" + ("true" if running else "false") + """) { verificarStatus(); }
+});
+</script>"""
+
     return f"""<!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -583,9 +662,12 @@ def gerar_html_dashboard(usuario=None):
 <body>
     {_topbar("/", usuario)}
     <div class="page-content">
-        <div class="page-header">
-            <h1>Dashboard</h1>
-            <div class="subtitulo">Visão geral · atualiza automaticamente a cada 30s</div>
+        <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+            <div>
+                <h1>Dashboard</h1>
+                <div class="subtitulo">Visão geral · atualiza automaticamente a cada 30s · <span id="ultima-execucao">Última execução: {ultima_str}</span></div>
+            </div>
+            {btn_executar_html}
         </div>
 
         <div class="cards">
@@ -671,6 +753,7 @@ def gerar_html_dashboard(usuario=None):
         <div class="footer">SSA Monitor Processos · Dashboard Web</div>
     </div>
     {_JS_THEME_TOGGLE}
+    {js_admin}
 </body>
 </html>"""
 
@@ -1371,6 +1454,8 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
             </div>
         </div>
 
+        {"<section style='margin-bottom:20px;border-left:4px solid var(--blue);padding-left:20px;'><h2 style='margin-bottom:10px;'>Objeto</h2><p style='line-height:1.6;color:var(--text-1);white-space:pre-wrap;max-width:820px;'>" + objeto + "</p></section>" if objeto else ""}
+
         <section style="margin-bottom:20px;">
             <h2>Informações do processo</h2>
             <table style="width:auto;">
@@ -1378,7 +1463,6 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
                     <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Empresa</td>
                     <td><strong>{emp}</strong></td>
                 </tr>
-                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;vertical-align:top;'>Objeto</td><td style='max-width:560px;line-height:1.5;'>" + objeto + "</td></tr>" if objeto else ""}
                 <tr>
                     <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Robô</td>
                     <td>{robo}</td>
@@ -1685,6 +1769,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(html.encode("utf-8"))
 
+    def _responder_json(self, dados: dict, status=200):
+        corpo = json.dumps(dados, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-type", "application/json; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(corpo)
+
     def _redirecionar(self, local, cookies=None):
         self.send_response(302)
         self.send_header("Location", local)
@@ -1731,6 +1822,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 token_csrf = auth.gerar_token_csrf(token)
                 usuarios = auth_repository.listar_usuarios()
                 return self._responder_html(gerar_html_admin_usuarios(sessao, usuarios, token_csrf))
+
+            if rota == "/api/admin/status-monitoramento":
+                if not sessao.get("is_admin"):
+                    return self._negar()
+                status = _ler_status_monitoramento()
+                ultima = buscar_ultima_execucao()
+                ultima_fmt = _fmt_data(ultima, hora=True) if ultima else None
+                return self._responder_json({"running": status.get("running", False), "ultima_execucao": ultima_fmt})
 
             if rota == "/":
                 return self._responder_html(gerar_html_dashboard(sessao))
@@ -1787,6 +1886,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
             if rota == "/trocar-senha":
                 return self._processar_trocar_senha(dados, sessao)
+
+            if rota == "/api/admin/executar-monitoramento":
+                if not sessao.get("is_admin"):
+                    return self._negar()
+                status = _ler_status_monitoramento()
+                if status.get("running"):
+                    return self._responder_json({"ok": False, "message": "Já está em execução"})
+                subprocess.Popen([sys.executable, _SCRIPT_MANUAL], cwd=_BASE_DIR)
+                return self._responder_json({"ok": True, "message": "Monitoramento iniciado"})
 
             if rota.startswith("/admin/usuarios"):
                 if not sessao.get("is_admin"):
