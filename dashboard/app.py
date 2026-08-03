@@ -1652,6 +1652,7 @@ th {{ text-align:left;font-size:10px;font-weight:600;color:var(--text-3);
 td {{ padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:12px; }}
 tr:last-child td {{ border-bottom:none; }}
 tr:hover td {{ background:var(--bg-hover); }}
+td:nth-child(2) {{ max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }}
 select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--border);
           border-radius:7px;padding:5px 9px;font-size:12px;font-family:inherit;cursor:pointer; }}
 </style>
