@@ -2514,7 +2514,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return self._responder_html(html)
 
             if rota == "/processos":
-                from urllib.parse import parse_qs, urlparse
                 qs = parse_qs(urlparse(self.path).query)
                 f_orgao   = qs.get("orgao",   [""])[0]
                 f_empresa = qs.get("empresa", [""])[0]
