@@ -98,6 +98,7 @@ class RobotAtendeNetV2:
 
         browser = await uc.start(
             headless=False,
+            no_sandbox=True,
             browser_args=[
                 "--window-position=-32000,-32000",
                 "--window-size=1280,800",
