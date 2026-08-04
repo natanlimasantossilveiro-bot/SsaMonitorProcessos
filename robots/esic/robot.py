@@ -19,8 +19,20 @@ class RobotEsicSJP(RobotBase):
         display.start()
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=False)
-                page = await browser.new_page()
+                browser = await p.chromium.launch(
+                    headless=False,
+                    executable_path="/usr/bin/google-chrome",
+                    ignore_default_args=["--enable-automation", "--disable-infobars"],
+                    args=[
+                        "--no-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-blink-features=AutomationControlled",
+                    ],
+                )
+                context = await browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"
+                )
+                page = await context.new_page()
 
                 await page.goto(url)
 
