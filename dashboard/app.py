@@ -1670,7 +1670,7 @@ select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--b
 </head>
 <body>
 {topbar}
-<div class="container" style="max-width:1200px;">
+<div class="page-content">
     {banner_ok}
     <div style="display:flex;align-items:center;justify-content:space-between;
                 flex-wrap:wrap;gap:10px;margin-bottom:16px;">
