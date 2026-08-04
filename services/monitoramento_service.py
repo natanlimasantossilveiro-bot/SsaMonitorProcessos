@@ -28,6 +28,9 @@ STATUS_ERRO_CONSULTA = "ERRO_CONSULTA"
 STATUS_PENDENTE_INTEGRACAO_CAPTCHA = "PENDENTE_INTEGRACAO_CAPTCHA"
 STATUS_CAPTCHA_RESOLVIDO_FLUXO_PENDENTE = "CAPTCHA_RESOLVIDO_FLUXO_PENDENTE"
 
+_MAX_TENTATIVAS = 3
+_DELAY_RETRY = 30  # segundos entre tentativas
+
 # Progresso da execução atual — atualizado durante o monitoramento
 _progresso = {"total": 0, "concluidos": 0, "orgao_atual": ""}
 
@@ -396,6 +399,30 @@ async def monitorar_um_processo_teste():
     print(f"Mensagem: {resultado.get('mensagem')}")
 
 
+async def _executar_com_retry(funcao_consulta, processo, processo_id):
+    for tentativa in range(1, _MAX_TENTATIVAS + 1):
+        try:
+            resultado = await funcao_consulta(processo)
+            if resultado.get("status") != STATUS_ERRO_CONSULTA:
+                return resultado
+            log.warning(
+                f"Processo {processo_id}: tentativa {tentativa}/{_MAX_TENTATIVAS} retornou ERRO_CONSULTA"
+                + (f" — aguardando {_DELAY_RETRY}s" if tentativa < _MAX_TENTATIVAS else "")
+            )
+        except Exception as e:
+            log.error(
+                f"Processo {processo_id}: tentativa {tentativa}/{_MAX_TENTATIVAS} — excecao: {e}"
+                + (f" — aguardando {_DELAY_RETRY}s" if tentativa < _MAX_TENTATIVAS else "")
+            )
+            if tentativa == _MAX_TENTATIVAS:
+                raise
+
+        if tentativa < _MAX_TENTATIVAS:
+            await asyncio.sleep(_DELAY_RETRY)
+
+    return {"status": STATUS_ERRO_CONSULTA, "mensagem": f"Falha apos {_MAX_TENTATIVAS} tentativas"}
+
+
 async def consultar_com_robo(
     processo,
     nome_robo,
@@ -412,7 +439,7 @@ async def consultar_com_robo(
     )
 
     try:
-        resultado = await funcao_consulta(processo)
+        resultado = await _executar_com_retry(funcao_consulta, processo, processo_id)
 
         status = resultado.get("status", "OK")
         mensagem = resultado.get("mensagem", "")
