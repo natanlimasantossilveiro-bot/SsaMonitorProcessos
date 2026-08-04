@@ -30,6 +30,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from dashboard import auth, auth_repository
 from utils.logger import get_logger
+from database.repositories import (
+    listar_orgaos,
+    buscar_processo_por_orgao_e_numero,
+    cadastrar_processo_manual,
+)
 from dashboard.dashboard_repository import (
     buscar_ultima_execucao,
     buscar_total_processos,
@@ -1589,7 +1594,7 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
 # ─────────────────────────────────────────────
 def gerar_html_processos(processos, orgaos, empresas, statuses,
                          filtro_orgao="", filtro_empresa="", filtro_status="",
-                         usuario=None):
+                         usuario=None, cadastro_ok=False):
     _STATUS_CORES = {
         "Em andamento": "#2563eb", "Em analise": "#f59e0b", "Em análise": "#f59e0b",
         "Indeferido": "#ef4444", "Deferido": "#10b981", "Finalizado": "#10b981",
@@ -1636,6 +1641,12 @@ def gerar_html_processos(processos, orgaos, empresas, statuses,
 
     topbar = _topbar("/processos", usuario)
     total  = len(processos)
+    banner_ok = (
+        '<div style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;'
+        'border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;">'
+        'Processo cadastrado com sucesso. Ele será consultado na próxima execução do monitoramento.</div>'
+        if cadastro_ok else ""
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1660,6 +1671,7 @@ select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--b
 <body>
 {topbar}
 <div class="container" style="max-width:1200px;">
+    {banner_ok}
     <div style="display:flex;align-items:center;justify-content:space-between;
                 flex-wrap:wrap;gap:10px;margin-bottom:16px;">
         <div>
@@ -1668,6 +1680,8 @@ select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--b
                 {total} processo{'s' if total != 1 else ''} ativo{'s' if total != 1 else ''}
             </p>
         </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <a href="/processos/cadastrar" class="btn" style="margin-bottom:0;">+ Novo processo</a>
         <form method="get" action="/processos"
               style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
             <select name="orgao" onchange="this.form.submit()">
@@ -1684,6 +1698,7 @@ select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--b
             </select>
             {'<a href="/processos" style="font-size:11px;color:var(--text-3);">Limpar</a>' if (filtro_orgao or filtro_empresa or filtro_status) else ''}
         </form>
+        </div>
     </div>
 
     <div style="background:var(--bg-card);border:1px solid var(--border);
@@ -1707,6 +1722,103 @@ select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--b
     </div>
 </div>
 {_JS_THEME_TOGGLE}
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────
+# PÁGINA: /processos/cadastrar
+# ─────────────────────────────────────────────
+def gerar_html_cadastrar_processo(orgaos, token_csrf, mensagem=None, erro=None, usuario=None):
+    opts_orgaos = "<option value=''>Selecione o órgão...</option>"
+    for o in orgaos:
+        if not o.get("ativo", True):
+            continue
+        robo = o.get("chave_robo") or ""
+        if not robo:
+            continue
+        opts_orgaos += f"<option value='{o['id']}' data-municipio='{escape(o['nome'])}' data-robo='{escape(robo)}'>{escape(o['nome'])}</option>"
+
+    feedback = ""
+    if mensagem:
+        feedback = f'<div style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;">{escape(mensagem)}</div>'
+    if erro:
+        feedback = f'<div style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px;">{escape(erro)}</div>'
+
+    inp = ("padding:9px 12px;border:1px solid var(--border);border-radius:8px;"
+           "background:var(--bg-card);color:var(--text-1);font-size:14px;"
+           "font-family:inherit;width:100%;")
+    lbl = "display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:5px;margin-top:16px;"
+
+    return f"""<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cadastrar processo · SSA Monitor</title>
+    {_JS_THEME_INIT}
+    <style>{CSS_BASE}</style>
+</head>
+<body>
+    {_topbar("/processos", usuario)}
+    <div class="page-content" style="max-width:620px;">
+        <div class="page-header">
+            <h1>Cadastrar processo</h1>
+            <div class="subtitulo">Preencha todos os campos obrigatórios</div>
+        </div>
+
+        <a href="/processos" class="btn secundario" style="margin-bottom:20px;">&larr; Voltar</a>
+
+        {feedback}
+
+        <section>
+            <form method="POST" action="/processos/cadastrar">
+                <input type="hidden" name="csrf" value="{escape(token_csrf)}">
+
+                <label style="{lbl}">Órgão / Prefeitura <span style="color:#ef4444;">*</span></label>
+                <select name="orgao_id" id="sel-orgao" required
+                        style="{inp}cursor:pointer;"
+                        onchange="atualizarCnpj()">
+                    {opts_orgaos}
+                </select>
+
+                <label style="{lbl}">Número do processo <span style="color:#ef4444;">*</span></label>
+                <input type="text" name="numero_processo" required
+                       placeholder="Ex: 202403135515309328." style="{inp}">
+
+                <label style="{lbl}">Empresa <span style="color:#ef4444;">*</span></label>
+                <input type="text" name="empresa" required
+                       placeholder="Ex: AMF Incorporações" style="{inp}">
+
+                <label style="{lbl}" id="lbl-cnpj">CNPJ <span style="color:#ef4444;">*</span></label>
+                <input type="text" name="cnpj" id="inp-cnpj"
+                       placeholder="00.000.000/0000-00" style="{inp}">
+
+                <div style="margin-top:24px;display:flex;gap:10px;">
+                    <button type="submit" class="btn" style="margin-bottom:0;">Cadastrar</button>
+                    <a href="/processos" class="btn secundario" style="margin-bottom:0;">Cancelar</a>
+                </div>
+            </form>
+        </section>
+    </div>
+    {_JS_THEME_TOGGLE}
+    <script>
+    const ROBOS_SEM_CNPJ = ['atende_net', 'curitiba', 'caieiras', 'ponta_grossa', 'pinhais'];
+    function atualizarCnpj() {{
+        const sel = document.getElementById('sel-orgao');
+        const opt = sel.options[sel.selectedIndex];
+        const robo = opt ? opt.dataset.robo : '';
+        const inp = document.getElementById('inp-cnpj');
+        const lbl = document.getElementById('lbl-cnpj');
+        if (ROBOS_SEM_CNPJ.includes(robo)) {{
+            inp.required = false;
+            lbl.innerHTML = 'CNPJ <span style="color:var(--text-3);font-weight:400;">(opcional para este órgão)</span>';
+        }} else {{
+            inp.required = true;
+            lbl.innerHTML = 'CNPJ <span style="color:#ef4444;">*</span>';
+        }}
+    }}
+    </script>
 </body>
 </html>"""
 
@@ -2517,18 +2629,24 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     return self._negar(404, "Processo não encontrado.")
                 return self._responder_html(html)
 
+            if rota == "/processos/cadastrar":
+                token_csrf = auth.gerar_token_csrf(token)
+                orgaos = listar_orgaos()
+                return self._responder_html(gerar_html_cadastrar_processo(orgaos, token_csrf, usuario=sessao))
+
             if rota == "/processos":
                 qs = parse_qs(urlparse(self.path).query)
                 f_orgao   = qs.get("orgao",   [""])[0]
                 f_empresa = qs.get("empresa", [""])[0]
                 f_status  = qs.get("status",  [""])[0]
+                cadastro_ok = qs.get("cadastro", [""])[0] == "ok"
                 orgaos, empresas, statuses = buscar_filtros_processos()
                 processos = buscar_todos_processos(
                     f_orgao or None, f_empresa or None, f_status or None
                 )
                 return self._responder_html(gerar_html_processos(
                     processos, orgaos, empresas, statuses,
-                    f_orgao, f_empresa, f_status, sessao
+                    f_orgao, f_empresa, f_status, sessao, cadastro_ok=cadastro_ok
                 ))
 
             if rota == "/relatorio":
@@ -2606,6 +2724,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if rota == "/trocar-senha":
                 return self._processar_trocar_senha(dados, sessao)
 
+            if rota == "/processos/cadastrar":
+                return self._processar_cadastrar_processo(dados, token, sessao)
+
             if rota.startswith("/admin/usuarios"):
                 if not sessao.get("is_admin"):
                     return self._negar()
@@ -2661,6 +2782,41 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         auth_repository.atualizar_senha(usuario["id"], auth.hash_senha(senha_nova), precisa_trocar_senha=False)
         self._redirecionar("/")
+
+    def _processar_cadastrar_processo(self, dados, token, sessao):
+        token_csrf = auth.gerar_token_csrf(token)
+        orgaos = listar_orgaos()
+
+        orgao_id_str = (dados.get("orgao_id") or "").strip()
+        numero_processo = (dados.get("numero_processo") or "").strip()
+        empresa = (dados.get("empresa") or "").strip()
+        cnpj = (dados.get("cnpj") or "").strip()
+
+        if not orgao_id_str or not orgao_id_str.isdigit():
+            return self._responder_html(gerar_html_cadastrar_processo(
+                orgaos, token_csrf, erro="Selecione um órgão válido.", usuario=sessao))
+
+        orgao_id = int(orgao_id_str)
+        orgao = next((o for o in orgaos if o["id"] == orgao_id), None)
+
+        if not orgao:
+            return self._responder_html(gerar_html_cadastrar_processo(
+                orgaos, token_csrf, erro="Órgão não encontrado.", usuario=sessao))
+
+        if not numero_processo or not empresa:
+            return self._responder_html(gerar_html_cadastrar_processo(
+                orgaos, token_csrf, erro="Preencha todos os campos obrigatórios.", usuario=sessao))
+
+        if buscar_processo_por_orgao_e_numero(orgao_id, numero_processo):
+            return self._responder_html(gerar_html_cadastrar_processo(
+                orgaos, token_csrf,
+                erro=f"Processo {numero_processo} já está cadastrado para este órgão.",
+                usuario=sessao))
+
+        municipio = orgao.get("nome", "")
+        cadastrar_processo_manual(orgao_id, numero_processo, empresa, cnpj or None, municipio)
+        log.info(f"Processo cadastrado manualmente: {numero_processo} | orgao={municipio} | usuario={sessao.get('email')}")
+        return self._redirecionar(f"/processos?cadastro=ok")
 
     def _processar_admin_usuarios(self, rota, dados, token, sessao):
         token_csrf = auth.gerar_token_csrf(token)

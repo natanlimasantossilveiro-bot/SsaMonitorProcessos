@@ -190,6 +190,23 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
     return processo_id
 
 
+def cadastrar_processo_manual(orgao_id, numero_processo, empresa, cnpj, municipio):
+    """Cadastra um processo via formulário do dashboard (sem credenciais de acesso ao portal)."""
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    cursor.execute("""
+        INSERT INTO processos (orgao_id, empresa, cnpj, municipio, numero_processo, cliente)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (orgao_id, empresa, cnpj or None, municipio, numero_processo, empresa))
+
+    processo_id = cursor.lastrowid
+    conexao.commit()
+    cursor.close()
+    conexao.close()
+    return processo_id
+
+
 # =====================================================
 # ✅ LISTAGEM
 # =====================================================
