@@ -335,14 +335,27 @@ class RobotAtendeNetV2:
 
                 log.info(f"[objeto] texto capturado ({len(texto_info)} chars): {repr(texto_info[:500])}")
 
-                for marcador in ["Observação de Abertura:", "Observacao de Abertura:"]:
+                # Log do que vem DEPOIS de "Centro de Custo" para identificar marcador correto
+                _landmark = "Centro de Custo"
+                if _landmark in texto_info:
+                    _pos = texto_info.index(_landmark) + len(_landmark)
+                    log.info(f"[objeto] apos 'Centro de Custo': {repr(texto_info[_pos:_pos + 700])}")
+                else:
+                    log.info(f"[objeto] landmark 'Centro de Custo' NAO encontrado")
+
+                for marcador in ["Observação de Abertura:", "Observacao de Abertura:",
+                                  "Assunto\t", "Assunto\n\t"]:
                     if marcador in texto_info:
                         idx = texto_info.index(marcador) + len(marcador)
-                        objeto = texto_info[idx:idx + 1000].strip()
-                        log.info(f"[objeto] marcador '{marcador}' encontrado — objeto: {repr(objeto[:100])}")
-                        break
+                        candidato = texto_info[idx:idx + 1000].strip()
+                        # Ignora se vier vazio ou for só separadores
+                        if candidato and not candidato.startswith(("Subassunto", "Tipo", "Protocolo")):
+                            objeto = candidato
+                            log.info(f"[objeto] marcador '{marcador}' — objeto: {repr(objeto[:120])}")
+                            break
+                        log.info(f"[objeto] marcador '{marcador}' encontrado mas valor vazio/inválido")
                 else:
-                    log.info(f"[objeto] nenhum marcador encontrado no texto")
+                    log.info(f"[objeto] nenhum marcador válido encontrado")
             except Exception as e:
                 log.info(f"[objeto] excecao ao extrair: {e}")
 
