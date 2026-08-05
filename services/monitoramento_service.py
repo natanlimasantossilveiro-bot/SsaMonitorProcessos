@@ -17,8 +17,9 @@ from robots.atendenet_v2.robot import consultar_processo_pinhais
 from robots.sjp.robot import consultar_processo_sjp
 from robots.franco_rocha.robot import consultar_processo_franco_rocha
 from services.relatorio_execucao_service import salvar_relatorio_execucao
-from utils.logger import get_logger
+from utils.logger import configurar_logger, get_logger
 
+configurar_logger()
 log = get_logger("monitoramento")
 fila_processos = asyncio.Queue()
 
