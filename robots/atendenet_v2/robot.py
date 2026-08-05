@@ -325,37 +325,60 @@ class RobotAtendeNetV2:
                 """)
                 await tab.sleep(2)
 
+                # innerText ignora .value de inputs; usamos função customizada
                 texto_info = str(await tab.evaluate(f"""
                 (() => {{
                     {_JS_EMBED_DOC}
                     const [doc] = __embedDoc();
-                    return doc && doc.body ? doc.body.innerText : '';
+                    if (!doc || !doc.body) return '';
+                    function textoCompleto(el) {{
+                        let r = '';
+                        for (const n of el.childNodes) {{
+                            if (n.nodeType === 3) {{
+                                r += n.textContent;
+                            }} else if (n.tagName === 'INPUT' && n.type !== 'hidden') {{
+                                r += n.value;
+                            }} else if (n.tagName === 'TEXTAREA') {{
+                                r += n.value;
+                            }} else if (n.tagName === 'SELECT') {{
+                                const opt = n.options && n.options[n.selectedIndex];
+                                r += opt ? opt.text : '';
+                            }} else if (n.tagName && n.tagName !== 'SCRIPT' && n.tagName !== 'STYLE') {{
+                                r += textoCompleto(n);
+                            }}
+                        }}
+                        return r;
+                    }}
+                    return textoCompleto(doc.body);
                 }})()
                 """) or "")
 
                 log.info(f"[objeto] texto capturado ({len(texto_info)} chars): {repr(texto_info[:500])}")
 
-                # Log do que vem DEPOIS de "Centro de Custo" para identificar marcador correto
-                _landmark = "Centro de Custo"
-                if _landmark in texto_info:
-                    _pos = texto_info.index(_landmark) + len(_landmark)
-                    log.info(f"[objeto] apos 'Centro de Custo': {repr(texto_info[_pos:_pos + 700])}")
-                else:
-                    log.info(f"[objeto] landmark 'Centro de Custo' NAO encontrado")
-
-                for marcador in ["Observação de Abertura:", "Observacao de Abertura:",
-                                  "Assunto\t", "Assunto\n\t"]:
+                _MARCADORES_OBJETO = [
+                    "Observação de Abertura\t",
+                    "Observação de Abertura\n",
+                    "Observacao de Abertura\t",
+                    "Observacao de Abertura\n",
+                    "Observação de Abertura:",
+                    "Observacao de Abertura:",
+                    "Assunto\t",
+                ]
+                _PROXIMOS_CAMPOS = (
+                    "Subassunto", "Tipo", "Protocolo", "Responsável",
+                    "Termo de Aceite", "Data Parecer", "Requerente",
+                )
+                for marcador in _MARCADORES_OBJETO:
                     if marcador in texto_info:
                         idx = texto_info.index(marcador) + len(marcador)
                         candidato = texto_info[idx:idx + 1000].strip()
-                        # Ignora se vier vazio ou for só separadores
-                        if candidato and not candidato.startswith(("Subassunto", "Tipo", "Protocolo")):
+                        if candidato and not candidato.startswith(_PROXIMOS_CAMPOS):
                             objeto = candidato
-                            log.info(f"[objeto] marcador '{marcador}' — objeto: {repr(objeto[:120])}")
+                            log.info(f"[objeto] marcador {repr(marcador)} — objeto: {repr(objeto[:120])}")
                             break
-                        log.info(f"[objeto] marcador '{marcador}' encontrado mas valor vazio/inválido")
+                        log.info(f"[objeto] marcador {repr(marcador)} valor vazio — candidato: {repr(candidato[:80])}")
                 else:
-                    log.info(f"[objeto] nenhum marcador válido encontrado")
+                    log.info(f"[objeto] nenhum marcador valido encontrado")
             except Exception as e:
                 log.info(f"[objeto] excecao ao extrair: {e}")
 
