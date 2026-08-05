@@ -309,8 +309,22 @@ class RobotAtendeNetV2:
                     await tab.sleep(3)
 
             # ── Extrai objeto do processo (Observação de Abertura) ───────────
+            # Clica na aba "Informações" para garantir que o conteúdo carregue
             objeto = None
             try:
+                await tab.evaluate(f"""
+                (() => {{
+                    {_JS_EMBED_DOC}
+                    const [doc] = __embedDoc();
+                    if (!doc) return;
+                    const aba = [...doc.querySelectorAll('li, a, button, [role="tab"]')].find(
+                        e => e.textContent.trim() === 'Informações'
+                    );
+                    if (aba) aba.click();
+                }})()
+                """)
+                await tab.sleep(2)
+
                 texto_info = str(await tab.evaluate(f"""
                 (() => {{
                     {_JS_EMBED_DOC}
@@ -319,7 +333,7 @@ class RobotAtendeNetV2:
                 }})()
                 """) or "")
 
-                log.info(f"[objeto] texto capturado ({len(texto_info)} chars): {repr(texto_info[:300])}")
+                log.info(f"[objeto] texto capturado ({len(texto_info)} chars): {repr(texto_info[:500])}")
 
                 for marcador in ["Observação de Abertura:", "Observacao de Abertura:"]:
                     if marcador in texto_info:
