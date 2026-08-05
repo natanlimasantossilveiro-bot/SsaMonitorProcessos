@@ -400,10 +400,15 @@ async def monitorar_um_processo_teste():
     print(f"Mensagem: {resultado.get('mensagem')}")
 
 
+_TIMEOUT_CONSULTA = 240  # segundos maximos por tentativa (evita Chrome pendurado)
+
+
 async def _executar_com_retry(funcao_consulta, processo, processo_id):
     for tentativa in range(1, _MAX_TENTATIVAS + 1):
         try:
-            resultado = await funcao_consulta(processo)
+            resultado = await asyncio.wait_for(
+                funcao_consulta(processo), timeout=_TIMEOUT_CONSULTA
+            )
             if resultado.get("status") != STATUS_ERRO_CONSULTA:
                 return resultado
             log.warning(
