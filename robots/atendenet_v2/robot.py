@@ -319,13 +319,18 @@ class RobotAtendeNetV2:
                 }})()
                 """) or "")
 
+                log.info(f"[objeto] texto capturado ({len(texto_info)} chars): {repr(texto_info[:300])}")
+
                 for marcador in ["Observação de Abertura:", "Observacao de Abertura:"]:
                     if marcador in texto_info:
                         idx = texto_info.index(marcador) + len(marcador)
                         objeto = texto_info[idx:idx + 1000].strip()
+                        log.info(f"[objeto] marcador '{marcador}' encontrado — objeto: {repr(objeto[:100])}")
                         break
+                else:
+                    log.info(f"[objeto] nenhum marcador encontrado no texto")
             except Exception as e:
-                log.debug(f"Nao foi possivel extrair objeto: {e}")
+                log.info(f"[objeto] excecao ao extrair: {e}")
 
             # ── Extrai movimentacoes ──────────────────────────────────────────
             await tab.sleep(6)
