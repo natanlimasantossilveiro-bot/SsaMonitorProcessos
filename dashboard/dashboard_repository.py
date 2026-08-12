@@ -47,8 +47,8 @@ def buscar_processos_monitorados():
         SELECT COUNT(*) AS total
         FROM processos
         WHERE ativo = TRUE
-        AND status_atual IS NOT NULL
-        AND status_atual <> '';
+          AND (status_atual IS NULL
+               OR status_atual NOT IN ('Encerrado', 'Finalizado', 'Indeferido', 'Deferido'));
     """)
     return resultado["total"]
 
