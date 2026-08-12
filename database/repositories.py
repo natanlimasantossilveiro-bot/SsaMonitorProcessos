@@ -239,6 +239,8 @@ def listar_processos_ativos_com_orgao():
         FROM processos
         INNER JOIN orgaos ON processos.orgao_id = orgaos.id
         WHERE processos.ativo = TRUE
+          AND (processos.status_atual IS NULL
+               OR processos.status_atual NOT IN ('Encerrado', 'Finalizado', 'Indeferido', 'Deferido'))
         ORDER BY processos.id
     """)
 
