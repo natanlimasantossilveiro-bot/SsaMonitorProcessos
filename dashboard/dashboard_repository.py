@@ -70,6 +70,16 @@ def buscar_total_orgaos():
     return resultado["total"]
 
 
+def buscar_processos_encerrados():
+    resultado = executar_query_unica("""
+        SELECT COUNT(*) AS total
+        FROM processos
+        WHERE ativo = TRUE
+          AND status_atual IN ('Encerrado', 'Finalizado', 'Indeferido', 'Deferido');
+    """)
+    return resultado["total"]
+
+
 def buscar_processos_por_status():
     return executar_query("""
         SELECT

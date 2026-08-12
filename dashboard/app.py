@@ -52,6 +52,7 @@ from dashboard.dashboard_repository import (
     buscar_movimentacoes_do_dia_agrupadas,
     buscar_ultimas_movimentacoes_todos_processos,
     buscar_historico_7_dias,
+    buscar_processos_encerrados,
     buscar_processo_por_id_dashboard,
     buscar_movimentacoes_do_processo,
     buscar_historico_consultas_do_processo,
@@ -553,6 +554,7 @@ def gerar_html_dashboard(usuario=None):
     total_processos       = buscar_total_processos()
     processos_monitorados = buscar_processos_monitorados()
     total_orgaos          = buscar_total_orgaos()
+    processos_encerrados  = buscar_processos_encerrados()
     novas_movimentacoes   = buscar_total_movimentacoes_recentes()
     processos_por_status  = buscar_processos_por_status()
     ranking_orgaos        = buscar_ranking_orgaos()
@@ -756,10 +758,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 {mini_lista}
                 <div class="hint">Clique para ver detalhes ›</div>
             </a>
-            <div class="card neutro">
-                <h2>{total_orgaos}</h2>
-                <p>Total de órgãos/links</p>
-            </div>
+            <a href="/processos" class="card neutro">
+                <h2>{processos_encerrados}</h2>
+                <p>Encerrados / indeferidos</p>
+                <div class="hint">Clique para ver detalhes ›</div>
+            </a>
         </div>
 
         <section>
