@@ -2093,10 +2093,11 @@ def gerar_html_relatorio_visualizar(por_orgao, processos, filtros, usuario=None)
         bloco_sem = ""
         sem_count = len(procs) - com_mov_org
         if linhas_sem:
+            aberto = " open" if not linhas_com else ""
             bloco_sem = f"""
-            <details style="margin-top:6px;" class="sem-mov">
+            <details style="margin-top:6px;" class="sem-mov"{aberto}>
                 <summary style="font-size:12px;color:var(--text-3);cursor:pointer;font-weight:500;user-select:none;">
-                    &#8212; Sem movimentação no período ({sem_count}) — clique para expandir
+                    &#8212; Sem movimentação no período ({sem_count}){' — clique para expandir' if linhas_com else ''}
                 </summary>
                 <table style="width:100%;border-collapse:collapse;margin-top:8px;">
                     <thead><tr>
