@@ -1617,8 +1617,9 @@ def gerar_html_processos(processos, orgaos, empresas, statuses,
     def _opt(lista, sel):
         return "".join(f"<option value='{escape(v)}' {'selected' if v==sel else ''}>{escape(v)}</option>" for v in lista)
 
-    linhas = ""
-    for p in processos:
+    _STATUS_CONCLUIDOS = {"Deferido", "Finalizado", "Indeferido", "Encerrado"}
+
+    def _gerar_linha(p, dimmed=False):
         pid    = p["id"]
         num    = escape(str(p["numero_processo"] or ""))
         emp    = escape(str(p["empresa"] or ""))
@@ -1628,8 +1629,9 @@ def gerar_html_processos(processos, orgaos, empresas, statuses,
         ult_m  = _fmt_data(p["data_ultimo_movimento"]) if p.get("data_ultimo_movimento") else "—"
         badge_s = _badge_status(p.get("status_atual"))
         badge_r = _badge_resultado(p.get("ultimo_resultado"))
-        linhas += f"""
-        <tr onclick="window.location='/processo/{pid}'" style="cursor:pointer;">
+        opacidade = "opacity:0.6;" if dimmed else ""
+        return f"""
+        <tr onclick="window.location='/processo/{pid}'" style="cursor:pointer;{opacidade}">
             <td><strong style='font-size:12px;'>{num}</strong></td>
             <td><span style='font-size:12px;'>{emp}</span><span style='font-size:10px;color:var(--text-3);margin-left:5px;'>({cli})</span></td>
             <td style='font-size:12px;'>{org}</td>
@@ -1639,14 +1641,63 @@ def gerar_html_processos(processos, orgaos, empresas, statuses,
             <td style='color:var(--text-2);'>{ult_m}</td>
         </tr>"""
 
+    ativos     = [p for p in processos if str(p.get("status_atual") or "") not in _STATUS_CONCLUIDOS]
+    concluidos = [p for p in processos if str(p.get("status_atual") or "") in _STATUS_CONCLUIDOS]
+
+    linhas           = "".join(_gerar_linha(p) for p in ativos)
+    linhas_concluidos = "".join(_gerar_linha(p, dimmed=True) for p in concluidos)
+
     topbar = _topbar("/processos", usuario)
-    total  = len(processos)
+    total  = len(ativos)
     banner_ok = (
         '<div style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;'
         'border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;">'
         'Processo cadastrado com sucesso. Ele será consultado na próxima execução do monitoramento.</div>'
         if cadastro_ok else ""
     )
+
+    thead = """
+        <thead>
+            <tr>
+                <th>Nº Processo</th>
+                <th>Empresa</th>
+                <th>Prefeitura</th>
+                <th>Status</th>
+                <th>Resultado</th>
+                <th>Última consulta</th>
+                <th>Último mov.</th>
+            </tr>
+        </thead>"""
+
+    secao_concluidos = ""
+    if concluidos:
+        expandido = not ativos  # abre automaticamente se não há ativos
+        display_inicial = "block" if expandido else "none"
+        icone_inicial   = "▲" if expandido else "▼"
+        secao_concluidos = f"""
+    <div style="margin-top:24px;">
+        <button onclick="toggleConcluidos()" id="btn-concluidos"
+                style="display:flex;align-items:center;gap:8px;background:none;border:none;
+                       cursor:pointer;padding:0;font-family:inherit;margin-bottom:12px;">
+            <span style="font-size:15px;font-weight:700;color:var(--text-2);">
+                Processos encerrados / indeferidos
+            </span>
+            <span style="background:var(--border);color:var(--text-2);border-radius:999px;
+                         padding:1px 9px;font-size:12px;font-weight:600;">{len(concluidos)}</span>
+            <span id="icone-concluidos" style="font-size:13px;color:var(--text-3);">{icone_inicial}</span>
+        </button>
+        <div id="tabela-concluidos" style="display:{display_inicial};">
+            <div style="background:var(--bg-card);border:1px solid var(--border);
+                        border-radius:12px;overflow:hidden;overflow-x:auto;">
+                <table>
+                    {thead}
+                    <tbody>
+                        {linhas_concluidos}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>"""
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1677,7 +1728,8 @@ select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--b
         <div>
             <h1 style="font-size:22px;font-weight:800;">Processos</h1>
             <p style="color:var(--text-2);font-size:12px;margin-top:2px;">
-                {total} processo{'s' if total != 1 else ''} ativo{'s' if total != 1 else ''}
+                {total} processo{'s' if total != 1 else ''} em tramitação
+                {f' · <span style="color:var(--text-3);">{len(concluidos)} encerrado{"s" if len(concluidos) != 1 else ""}</span>' if concluidos else ''}
             </p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -1704,24 +1756,29 @@ select {{ background:var(--bg-card);color:var(--text-1);border:1px solid var(--b
     <div style="background:var(--bg-card);border:1px solid var(--border);
                 border-radius:12px;overflow:hidden;overflow-x:auto;">
         <table>
-            <thead>
-                <tr>
-                    <th>Nº Processo</th>
-                    <th>Empresa</th>
-                    <th>Prefeitura</th>
-                    <th>Status</th>
-                    <th>Resultado</th>
-                    <th>Última consulta</th>
-                    <th>Último mov.</th>
-                </tr>
-            </thead>
+            {thead}
             <tbody>
-                {linhas if linhas else "<tr><td colspan='7' style='text-align:center;padding:32px;color:var(--text-3);'>Nenhum processo encontrado.</td></tr>"}
+                {linhas if linhas else "<tr><td colspan='7' style='text-align:center;padding:32px;color:var(--text-3);'>Nenhum processo em tramitação.</td></tr>"}
             </tbody>
         </table>
     </div>
+
+    {secao_concluidos}
 </div>
 {_JS_THEME_TOGGLE}
+<script>
+function toggleConcluidos() {{
+    var el = document.getElementById('tabela-concluidos');
+    var ic = document.getElementById('icone-concluidos');
+    if (el.style.display === 'none') {{
+        el.style.display = 'block';
+        ic.textContent = '▲';
+    }} else {{
+        el.style.display = 'none';
+        ic.textContent = '▼';
+    }}
+}}
+</script>
 </body>
 </html>"""
 
