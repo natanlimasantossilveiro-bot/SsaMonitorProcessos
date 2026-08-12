@@ -16,6 +16,7 @@ from robots.curitiba.robot import consultar_processo_curitiba
 from robots.atendenet_v2.robot import consultar_processo_pinhais
 from robots.sjp.robot import consultar_processo_sjp
 from robots.franco_rocha.robot import consultar_processo_franco_rocha
+from robots.ridigital.robot import consultar_processo_ridigital
 from services.relatorio_execucao_service import salvar_relatorio_execucao
 from utils.logger import configurar_logger, get_logger
 
@@ -44,6 +45,7 @@ _NOMES_ROBO = {
     "esic": "eSIC",
     "ponta_grossa": "Ponta Grossa",
     "pinhais": "Pinhais",
+    "ridigital": "RI Digital (Registradores)",
 }
 
 
@@ -634,6 +636,12 @@ async def rotear_consulta_processo(processo, modo_silencioso_sem_robo=False):
             funcao_consulta=consultar_processo_pinhais,
         )
 
+    if nome_robo == "ridigital":
+        return await consultar_com_robo(
+            processo=processo,
+            nome_robo="ridigital",
+            funcao_consulta=consultar_processo_ridigital,
+        )
 
     registrar_historico_consulta(
         processo_id=processo_id,
