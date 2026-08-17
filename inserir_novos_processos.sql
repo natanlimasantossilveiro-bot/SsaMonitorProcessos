@@ -1,0 +1,54 @@
+-- Insercao de processos novos (pula duplicatas)
+-- Execute no VPS: sudo mysql ssa_monitor_processos < inserir_novos_processos.sql
+
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '42.015.001.21-0000551', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '42.015.001.21-0000551');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '23.1003.10001-00096301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '23.1003.10001-00096301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2403005600100200000', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2403005600100200000');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '24.09.0063.001.00386-3', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '24.09.0063.001.00386-3');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2510004400100119301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2510004400100119301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2510005600101728302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2510005600101728302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2511005600100243302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2511005600100243302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2601031000100850301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2601031000100850301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2601031000100850302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2601031000100850302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2601031000101048301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2601031000101048301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2603005600100138301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2603005600100138301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2512005600100491302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2512005600100491302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2512005600100491301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2512005600100491301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602031000101012302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602031000101012302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602031000101012301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602031000101012301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602031000100821301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602031000100821301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602031000100821302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602031000100821302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2603031000100380302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2603031000100380302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2603031000100380301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2603031000100380301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602031000101084302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602031000101084302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602031000101084301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602031000101084301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2603031000100029302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2603031000100029302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2603031000100029301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2603031000100029301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602031000101122302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602031000101122302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602031000101122301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602031000101122301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2603031000100133301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2603031000100133301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2603031000100133302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2603031000100133302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602031000101164301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602031000101164301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602005600100750301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602005600100750301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2602003900102345301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2602003900102345301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2603003900100354301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2603003900100354301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2604031000100687301', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2604031000100687301');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2604031000100687302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2604031000100687302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '2604003900100101302', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '2604003900100101302');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '19362/2025', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '19362/2025');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '59363/2026', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '59363/2026');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '12270', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '12270');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '02023.005045/2025-02', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '02023.005045/2025-02');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '02023.002189/2025-07', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '02023.002189/2025-07');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 1, 'PREENCHER', '01-080428/2026', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '01-080428/2026');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 1, 'PREENCHER', '01-151537/2026', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '01-151537/2026');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 1, 'PREENCHER', '01-151540/2026', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '01-151540/2026');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 10, 'PREENCHER', '19362', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '19362');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '02-006172/2026', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '02-006172/2026');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '02-006497/2026', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '02-006497/2026');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '02-006498/2026', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '02-006498/2026');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '02-006500/2026', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '02-006500/2026');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '02-006502/2026', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '02-006502/2026');
+INSERT INTO processos (orgao_id, empresa, numero_processo, ativo) SELECT 11, 'PREENCHER', '02-006503/2026', 1 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM processos WHERE numero_processo = '02-006503/2026');
+
+SELECT COUNT(*) AS total_processos FROM processos;
