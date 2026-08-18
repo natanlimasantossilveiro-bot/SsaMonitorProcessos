@@ -674,6 +674,16 @@ function _atualizarBarra(concluidos, total, orgao) {
     document.getElementById('progresso-orgao').textContent =
         orgao ? '📍 ' + orgao : '';
 }
+var _autoRefreshTimer = null;
+var _monitorandoAtivo = false;
+
+function _agendarAutoRefresh() {
+    if (_autoRefreshTimer) clearTimeout(_autoRefreshTimer);
+    if (!_monitorandoAtivo) {
+        _autoRefreshTimer = setTimeout(function() { location.reload(); }, 30000);
+    }
+}
+
 function verificarStatus() {
     fetch('/api/admin/status-monitoramento')
         .then(r => r.json())
@@ -681,7 +691,10 @@ function verificarStatus() {
             var btn  = document.getElementById('btn-executar');
             var span = document.getElementById('ultima-execucao');
             var wrap = document.getElementById('progresso-wrap');
+            var label = document.getElementById('progresso-label');
             if (data.running) {
+                _monitorandoAtivo = true;
+                if (_autoRefreshTimer) { clearTimeout(_autoRefreshTimer); _autoRefreshTimer = null; }
                 btn.textContent   = '⏳ Executando...';
                 btn.disabled      = true;
                 btn.style.opacity = '0.6';
@@ -689,22 +702,39 @@ function verificarStatus() {
                 _atualizarBarra(data.concluidos || 0, data.total || 0, data.orgao_atual || '');
                 setTimeout(verificarStatus, 2000);
             } else {
+                if (_monitorandoAtivo) {
+                    // Acabou de terminar — mostra mensagem por 4s antes de esconder
+                    var total = data.concluidos || 0;
+                    label.textContent = '✅ Concluído! ' + (data.total > 0 ? data.total + ' processos consultados.' : 'Monitoramento finalizado.');
+                    document.getElementById('progresso-pct').textContent = '';
+                    document.getElementById('progresso-barra').style.width = '100%';
+                    document.getElementById('progresso-orgao').textContent = '';
+                    setTimeout(function() {
+                        wrap.style.display = 'none';
+                        _monitorandoAtivo = false;
+                        _agendarAutoRefresh();
+                    }, 4000);
+                } else {
+                    wrap.style.display = 'none';
+                }
                 btn.textContent   = '▶ Executar agora';
                 btn.disabled      = false;
                 btn.style.opacity = '1';
-                wrap.style.display = 'none';
                 if (data.ultima_execucao) {
                     span.textContent = 'Última execução: ' + data.ultima_execucao;
                 }
+                if (!_monitorandoAtivo) { _agendarAutoRefresh(); }
             }
         })
-        .catch(function(){});
+        .catch(function(){ _agendarAutoRefresh(); });
 }
 function executarMonitoramento() {
     fetch('/api/admin/executar-monitoramento', {method: 'POST'})
         .then(r => r.json())
         .then(data => {
             if (data.ok) {
+                _monitorandoAtivo = true;
+                if (_autoRefreshTimer) { clearTimeout(_autoRefreshTimer); _autoRefreshTimer = null; }
                 var btn  = document.getElementById('btn-executar');
                 var wrap = document.getElementById('progresso-wrap');
                 btn.textContent   = '⏳ Executando...';
@@ -718,7 +748,8 @@ function executarMonitoramento() {
         .catch(function(){});
 }
 document.addEventListener('DOMContentLoaded', function() {
-    if (""" + ("true" if running else "false") + """) { verificarStatus(); }
+    if (""" + ("true" if running else "false") + """) { _monitorandoAtivo = true; verificarStatus(); }
+    else { _agendarAutoRefresh(); }
 });
 </script>"""
 
@@ -726,7 +757,6 @@ document.addEventListener('DOMContentLoaded', function() {
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="30">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SSA Monitor Processos</title>
     {_JS_THEME_INIT}
