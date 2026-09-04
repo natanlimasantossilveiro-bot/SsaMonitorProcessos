@@ -347,6 +347,7 @@ def movimentacao_ja_existe(processo_id, data, descricao):
     conexao = criar_conexao()
     cursor = conexao.cursor(dictionary=True)
 
+    # Check 1: correspondência exata
     cursor.execute("""
         SELECT id
         FROM movimentacoes
@@ -356,11 +357,35 @@ def movimentacao_ja_existe(processo_id, data, descricao):
         LIMIT 1
     """, (processo_id, data, descricao))
 
-    resultado = cursor.fetchone()
+    if cursor.fetchone():
+        cursor.close()
+        conexao.close()
+        return True
+
+    # Check 2: mesmo evento com texto ligeiramente diferente entre execuções.
+    # Extrai o horário exato (HH:MM:SS) da descrição — presente nos movimentos
+    # do AtendNet como "Data do Movimento: DD/MM/YYYY HH:MM:SS".
+    # Se já existe um registro para o mesmo processo+data contendo aquele
+    # segundo exato, é o mesmo evento e não deve ser inserido novamente.
+    match = _PATTERN_HORARIO.search(descricao or "")
+    if match:
+        horario = match.group(1)  # ex: "15:13:00"
+        cursor.execute("""
+            SELECT id
+            FROM movimentacoes
+            WHERE processo_id = %s
+            AND data_movimento <=> %s
+            AND descricao LIKE %s
+            LIMIT 1
+        """, (processo_id, data, f"%{horario}%"))
+        if cursor.fetchone():
+            cursor.close()
+            conexao.close()
+            return True
 
     cursor.close()
     conexao.close()
-    return resultado is not None
+    return False
 
 
 def registrar_movimentacao(processo_id, data, descricao):
