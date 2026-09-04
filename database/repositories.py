@@ -3,6 +3,7 @@ from database.connection import criar_conexao
 from utils.crypto_utils import criptografar, descriptografar
 
 _PATTERN_HORARIO = re.compile(r'\d{2}/\d{2}/\d{4}\s*(\d{2}:\d{2}:\d{2})')
+_PATTERN_ROTULOS = re.compile(r'\b(Usu[aá]rio|Origem|Destino):\s*')
 
 
 # =====================================================
@@ -343,6 +344,16 @@ def limpar_caminho_solicitacao_captcha(processo_id):
 # =====================================================
 # ✅ MOVIMENTAÇÕES
 # =====================================================
+def _tipo_movimento(texto):
+    """Classifica o tipo estrutural do movimento para evitar dedup entre tipos distintos."""
+    t = texto or ''
+    if 'Observação de Abertura' in t or 'Observacao de Abertura' in t:
+        return 'abertura'
+    if 'Origem:' in t or 'Destino:' in t:
+        return 'tramite'
+    return 'simples'
+
+
 def movimentacao_ja_existe(processo_id, data, descricao):
     conexao = criar_conexao()
     cursor = conexao.cursor(dictionary=True)
@@ -362,13 +373,8 @@ def movimentacao_ja_existe(processo_id, data, descricao):
         conexao.close()
         return True
 
-    # Check 2: mesmo evento com texto ligeiramente diferente entre execuções.
-    # Compara os primeiros 60 caracteres da descrição, que incluem o timestamp
-    # completo (DD/MM/YYYY HH:MM:SS) e o início do nome do usuário.
-    # Isso captura o caso onde o portal renderiza o mesmo movimento com texto
-    # diferente entre runs (ex: com ou sem rótulo numerado), sem bloquear
-    # dois eventos genuinamente distintos que aconteçam no mesmo segundo
-    # (que teriam origens/usuários diferentes, divergindo antes dos 60 chars).
+    # Check 2: prefixo bruto de 60 chars (captura variantes com/sem rótulo numerado,
+    # ex: "10 - Recebimento" vs versão sem numeração).
     prefixo = (descricao or "").strip()[:60]
     if len(prefixo) >= 30:
         cursor.execute("""
@@ -383,6 +389,33 @@ def movimentacao_ja_existe(processo_id, data, descricao):
             cursor.close()
             conexao.close()
             return True
+
+    # Check 3: mesmo evento com/sem rótulo "Usuário:" — o portal ora inclui o rótulo,
+    # ora omite, fazendo o prefixo bruto divergir antes do nome. Normaliza removendo
+    # rótulos variáveis e compara 80 chars. Restringe ao mesmo tipo estrutural
+    # (simples/abertura/tramite) para não deduplicar um par Abertura+Trâmite legítimo
+    # que o portal registra no mesmo segundo.
+    horario = _PATTERN_HORARIO.search(descricao or '')
+    if horario:
+        hms = horario.group(1)
+        tipo_novo = _tipo_movimento(descricao)
+        desc_norm = _PATTERN_ROTULOS.sub('', descricao or '').strip()[:80]
+        if len(desc_norm) >= 30:
+            cursor.execute("""
+                SELECT id, descricao
+                FROM movimentacoes
+                WHERE processo_id = %s
+                AND data_movimento <=> %s
+                AND descricao LIKE %s
+            """, (processo_id, data, f'%{hms}%'))
+            for row in cursor.fetchall():
+                if _tipo_movimento(row['descricao']) != tipo_novo:
+                    continue
+                stored_norm = _PATTERN_ROTULOS.sub('', row['descricao'] or '').strip()[:80]
+                if stored_norm == desc_norm:
+                    cursor.close()
+                    conexao.close()
+                    return True
 
     cursor.close()
     conexao.close()
