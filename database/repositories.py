@@ -363,13 +363,14 @@ def movimentacao_ja_existe(processo_id, data, descricao):
         return True
 
     # Check 2: mesmo evento com texto ligeiramente diferente entre execuções.
-    # Extrai o horário exato (HH:MM:SS) da descrição — presente nos movimentos
-    # do AtendNet como "Data do Movimento: DD/MM/YYYY HH:MM:SS".
-    # Se já existe um registro para o mesmo processo+data contendo aquele
-    # segundo exato, é o mesmo evento e não deve ser inserido novamente.
-    match = _PATTERN_HORARIO.search(descricao or "")
-    if match:
-        horario = match.group(1)  # ex: "15:13:00"
+    # Compara os primeiros 60 caracteres da descrição, que incluem o timestamp
+    # completo (DD/MM/YYYY HH:MM:SS) e o início do nome do usuário.
+    # Isso captura o caso onde o portal renderiza o mesmo movimento com texto
+    # diferente entre runs (ex: com ou sem rótulo numerado), sem bloquear
+    # dois eventos genuinamente distintos que aconteçam no mesmo segundo
+    # (que teriam origens/usuários diferentes, divergindo antes dos 60 chars).
+    prefixo = (descricao or "").strip()[:60]
+    if len(prefixo) >= 30:
         cursor.execute("""
             SELECT id
             FROM movimentacoes
@@ -377,7 +378,7 @@ def movimentacao_ja_existe(processo_id, data, descricao):
             AND data_movimento <=> %s
             AND descricao LIKE %s
             LIMIT 1
-        """, (processo_id, data, f"%{horario}%"))
+        """, (processo_id, data, f"{prefixo}%"))
         if cursor.fetchone():
             cursor.close()
             conexao.close()
