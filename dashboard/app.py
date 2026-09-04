@@ -78,16 +78,32 @@ def _ler_status_monitoramento():
         if os.path.exists(_STATUS_FILE):
             with open(_STATUS_FILE) as f:
                 status = json.load(f)
-            # Se marcado como running mas o processo não existe mais, auto-reseta
             if status.get("running"):
-                pid = status.get("pid")
                 processo_vivo = False
-                if pid:
+
+                # 1) Período de graça de 30s após iniciado_em: dá tempo ao Python
+                #    de subir e escrever o PID antes do primeiro poll do JS.
+                iniciado_em = status.get("iniciado_em")
+                if iniciado_em:
                     try:
-                        os.kill(pid, 0)  # sinal 0 = só testa existência
-                        processo_vivo = True
-                    except (OSError, ProcessLookupError):
-                        processo_vivo = False
+                        t = datetime.fromisoformat(iniciado_em)
+                        if (datetime.now() - t).total_seconds() < 30:
+                            processo_vivo = True
+                    except Exception:
+                        pass
+
+                # 2) Verificação pelo PID (após o período de graça).
+                if not processo_vivo:
+                    pid = status.get("pid")
+                    if pid:
+                        try:
+                            os.kill(pid, 0)
+                            processo_vivo = True
+                        except ProcessLookupError:
+                            processo_vivo = False   # processo não existe
+                        except OSError:
+                            processo_vivo = True    # existe mas sem permissão de sinal
+
                 if not processo_vivo:
                     status["running"] = False
                     status["orgao_atual"] = ""
