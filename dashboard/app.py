@@ -1466,16 +1466,22 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
     movimentacoes = buscar_movimentacoes_do_processo(processo_id)
     historico     = buscar_historico_consultas_do_processo(processo_id)
 
-    num    = escape(str(processo.get("numero_processo") or ""))
-    emp    = escape(str(processo.get("empresa") or "—"))
-    orgao  = escape(str(processo.get("orgao") or ""))
-    mun    = escape(str(processo.get("municipio") or orgao))
-    status = _badge_status(str(processo.get("status_atual") or ""))
-    robo   = escape(str(processo.get("robo") or "—"))
-    dt_mov = escape(_fmt_data(processo.get("data_ultimo_movimento")))
-    ult_c  = escape(_fmt_data(processo.get("ultima_consulta"), hora=True))
-    url_o  = escape(str(processo.get("url_orgao") or ""))
-    objeto = escape(str(processo.get("objeto") or ""))
+    num       = escape(str(processo.get("numero_processo") or ""))
+    emp       = escape(str(processo.get("empresa") or "—"))
+    cli       = escape(str(processo.get("cliente") or ""))
+    cnpj      = escape(str(processo.get("cnpj") or ""))
+    orgao     = escape(str(processo.get("orgao") or ""))
+    mun       = escape(str(processo.get("municipio") or orgao))
+    exercicio = escape(str(processo.get("exercicio") or ""))
+    codigo    = escape(str(processo.get("codigo") or ""))
+    status    = _badge_status(str(processo.get("status_atual") or ""))
+    robo      = escape(str(processo.get("robo") or "—"))
+    dt_mov    = escape(_fmt_data(processo.get("data_ultimo_movimento")))
+    ult_c     = escape(_fmt_data(processo.get("ultima_consulta"), hora=True))
+    url_o     = escape(str(processo.get("url_orgao") or ""))
+    url_proc  = escape(str(processo.get("acesso") or ""))
+    objeto    = escape(str(processo.get("objeto") or ""))
+    criado_em = escape(_fmt_data(processo.get("criado_em"), hora=True))
 
     # Movimentações
     linhas_mov = ""
@@ -1565,8 +1571,12 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
             <table style="width:auto;">
                 <tr>
                     <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Empresa</td>
-                    <td><strong>{emp}</strong></td>
+                    <td><strong>{emp}</strong>{(' <span style="color:var(--text-3);font-size:12px;">(' + cli + ')</span>') if cli and cli != emp else ''}</td>
                 </tr>
+                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;'>CNPJ</td><td>" + cnpj + "</td></tr>" if cnpj else ""}
+                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;'>Exercício</td><td>" + exercicio + "</td></tr>" if exercicio else ""}
+                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;'>Código verificador</td><td><code style='background:var(--bg);padding:2px 6px;border-radius:4px;font-size:13px;'>" + codigo + "</code></td></tr>" if codigo else ""}
+                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;'>Prefeitura</td><td>" + mun + "</td></tr>" if mun else ""}
                 <tr>
                     <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Robô</td>
                     <td>{robo}</td>
@@ -1579,7 +1589,9 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
                     <td style="color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;">Última consulta</td>
                     <td>{ult_c}</td>
                 </tr>
-                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;'>Portal</td><td>" + link_portal + "</td></tr>" if link_portal else ""}
+                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;'>Cadastrado em</td><td style=\"color:var(--text-2);font-size:13px;\">" + criado_em + "</td></tr>" if criado_em else ""}
+                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;'>Portal (órgão)</td><td>" + link_portal + "</td></tr>" if link_portal else ""}
+                {"<tr><td style='color:var(--text-2);padding:6px 16px 6px 0;white-space:nowrap;'>URL do processo</td><td><a href='" + url_proc + "' target='_blank' style='color:#2563eb;font-size:13px;word-break:break-all;'>" + url_proc + " ›</a></td></tr>" if url_proc else ""}
             </table>
         </section>
 

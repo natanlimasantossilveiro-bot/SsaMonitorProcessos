@@ -360,9 +360,11 @@ def buscar_processo_por_id_dashboard(processo_id: int):
         SELECT
             p.id, p.numero_processo, p.empresa, p.cnpj,
             p.municipio, p.exercicio, p.codigo, p.objeto,
+            p.acesso, p.cliente,
             p.status_atual, p.status_processo,
             p.data_ultimo_movimento, p.ultima_movimentacao,
             p.ultima_consulta, p.monitorado, p.robo,
+            p.criado_em, p.ativo,
             o.nome AS orgao, o.url AS url_orgao
         FROM processos p
         INNER JOIN orgaos o ON p.orgao_id = o.id
