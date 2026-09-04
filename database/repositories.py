@@ -3,7 +3,7 @@ from database.connection import criar_conexao
 from utils.crypto_utils import criptografar, descriptografar
 
 _PATTERN_HORARIO = re.compile(r'\d{2}/\d{2}/\d{4}\s*(\d{2}:\d{2}:\d{2})')
-_PATTERN_ROTULOS = re.compile(r'\b(Usu[aá]rio|Origem|Destino):\s*')
+_PATTERN_ROTULOS = re.compile(r'\b(Usu[aá]rio|Origem|Destino|Protocolo|Situa[çc][aã]o\s+Atual):\s*')
 
 
 # =====================================================
@@ -390,6 +390,20 @@ def movimentacao_ja_existe(processo_id, data, descricao):
             conexao.close()
             return True
 
+    # Check 2b: normalizado — mesma data + mesmo conteúdo após remover rótulos variáveis.
+    # Cobre portais como ESIC onde "Protocolo:  XYZ" e "XYZ" são o mesmo evento mas não
+    # têm horário HH:MM:SS, impedindo que o Check 3 os alcance.
+    norm_desc = _PATTERN_ROTULOS.sub('', descricao or '').strip()[:60]
+    if norm_desc and norm_desc != prefixo and len(norm_desc) >= 30:
+        cursor.execute("""
+            SELECT id, descricao FROM movimentacoes
+            WHERE processo_id = %s AND data_movimento <=> %s
+        """, (processo_id, data))
+        for row in cursor.fetchall():
+            row_norm = _PATTERN_ROTULOS.sub('', row['descricao'] or '').strip()[:60]
+            if row_norm == norm_desc:
+                cursor.close(); conexao.close(); return True
+
     # Check 3: mesmo evento com/sem rótulo "Usuário:" — o portal ora inclui o rótulo,
     # ora omite, fazendo o prefixo bruto divergir antes do nome. Normaliza removendo
     # rótulos variáveis e compara 80 chars. Restringe ao mesmo tipo estrutural
@@ -462,6 +476,11 @@ def _movimento_tem_correspondente(data_iso, descricao, portal_movs):
                 p_norm  = _PATTERN_ROTULOS.sub('', p_desc or '').strip()[:80]
                 if db_norm == p_norm and len(db_norm) >= 30:
                     return True
+        # Check normalizado por rótulos (ex: ESIC "Protocolo: XYZ" == "XYZ")
+        db_norm60 = _PATTERN_ROTULOS.sub('', descricao or '').strip()[:60]
+        p_norm60  = _PATTERN_ROTULOS.sub('', p_desc or '').strip()[:60]
+        if len(db_norm60) >= 30 and db_norm60 == p_norm60:
+            return True
     return False
 
 
