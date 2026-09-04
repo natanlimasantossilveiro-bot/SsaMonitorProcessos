@@ -5,7 +5,7 @@ from database.repositories import (
     listar_orgaos,
     listar_processos_ativos_com_orgao,
     registrar_historico_consulta,
-    registrar_movimentacao,
+    reconciliar_movimentacoes,
     atualizar_dados_processo,
     atualizar_objeto_processo,
     atualizar_caminho_solicitacao_captcha,
@@ -484,17 +484,28 @@ async def consultar_com_robo(
                     data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
                     break
 
-            # Salva cada movimentação individual (apenas as que têm data)
-            # na tabela movimentacoes — alimenta o dashboard "Últimas movimentações"
-            for movimento in movimentacoes:
-                match = re.search(r"\d{2}/\d{2}/\d{4}", movimento)
-                if match:
-                    try:
-                        data_str = match.group()
-                        data_mov = datetime.strptime(data_str, "%d/%m/%Y").strftime("%Y-%m-%d")
-                        registrar_movimentacao(processo_id, data_mov, movimento[:500])
-                    except Exception:
-                        pass
+            # Reconciliação bidirecional: insere movimentos ausentes e verifica
+            # se todos os registros do banco têm correspondente no portal.
+            rec = reconciliar_movimentacoes(processo_id, movimentacoes)
+            if rec['inseridas'] > 0:
+                log.info(
+                    f"Processo {processo_id}: {rec['inseridas']} nova(s) movimentacao(oes) inserida(s)"
+                )
+            if rec['suspeitos_extra_banco']:
+                log.warning(
+                    f"Processo {processo_id}: {len(rec['suspeitos_extra_banco'])} registro(s) no banco "
+                    f"sem correspondente no portal "
+                    f"(portal={rec['total_portal']} banco={rec['total_banco']})"
+                )
+                for s in rec['suspeitos_extra_banco']:
+                    log.warning(
+                        f"  suspeito id={s['id']} data={s['data']} desc={s['descricao'][:60]!r}"
+                    )
+            else:
+                log.info(
+                    f"Processo {processo_id}: movimentacoes sincronizadas "
+                    f"(portal={rec['total_portal']} banco={rec['total_banco']})"
+                )
 
         # =====================================================
         # CASO 2: DADOS DIRETOS

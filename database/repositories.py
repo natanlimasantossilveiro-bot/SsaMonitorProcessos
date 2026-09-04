@@ -445,6 +445,95 @@ def registrar_movimentacao(processo_id, data, descricao):
     return True
 
 
+def _movimento_tem_correspondente(data_iso, descricao, portal_movs):
+    """Verifica se um movimento do banco tem correspondente na lista do portal."""
+    for (p_data, p_desc) in portal_movs:
+        if p_data != data_iso:
+            continue
+        if p_desc == descricao:
+            return True
+        prefixo = (descricao or '').strip()[:60]
+        if len(prefixo) >= 30 and (p_desc or '').startswith(prefixo):
+            return True
+        horario = _PATTERN_HORARIO.search(descricao or '')
+        if horario and horario.group(1) in (p_desc or ''):
+            if _tipo_movimento(p_desc) == _tipo_movimento(descricao):
+                db_norm = _PATTERN_ROTULOS.sub('', descricao or '').strip()[:80]
+                p_norm  = _PATTERN_ROTULOS.sub('', p_desc or '').strip()[:80]
+                if db_norm == p_norm and len(db_norm) >= 30:
+                    return True
+    return False
+
+
+def reconciliar_movimentacoes(processo_id, movimentacoes_raw):
+    """
+    Reconcilia as movimentações capturadas pelo robô com o banco de forma bidirecional.
+
+    Etapa 1 — portal → banco: insere os movimentos do portal ausentes no banco.
+    Etapa 2 — banco → portal: para cada movimento já no banco, verifica se existe
+    correspondente no portal. Movimentos sem correspondente são reportados como
+    suspeitos (possível artefato de run anterior ou entrada falsa do portal).
+
+    Retorna dict:
+      inseridas, ja_existentes, total_portal, total_banco,
+      suspeitos_extra_banco (list[dict] id/data/descricao)
+    """
+    import re as _re
+    from datetime import datetime as _dt
+
+    _PAT_DATA = _re.compile(r'\d{2}/\d{2}/\d{4}')
+
+    portal_movs = []
+    inseridas = 0
+    ja_existentes = 0
+
+    for raw in movimentacoes_raw:
+        m = _PAT_DATA.search(raw)
+        if not m:
+            continue
+        try:
+            data_iso = _dt.strptime(m.group(), '%d/%m/%Y').strftime('%Y-%m-%d')
+        except Exception:
+            continue
+        descricao = raw[:500]
+        portal_movs.append((data_iso, descricao))
+        if registrar_movimentacao(processo_id, data_iso, descricao):
+            inseridas += 1
+        else:
+            ja_existentes += 1
+
+    conexao = criar_conexao()
+    cursor = conexao.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT id, data_movimento, descricao
+        FROM movimentacoes
+        WHERE processo_id = %s
+        ORDER BY id
+    """, (processo_id,))
+    db_movs = cursor.fetchall()
+    cursor.close()
+    conexao.close()
+
+    suspeitos = []
+    for db_mov in db_movs:
+        data_iso = str(db_mov['data_movimento'])[:10]
+        desc = db_mov['descricao'] or ''
+        if not _movimento_tem_correspondente(data_iso, desc, portal_movs):
+            suspeitos.append({
+                'id': db_mov['id'],
+                'data': data_iso,
+                'descricao': desc[:80],
+            })
+
+    return {
+        'inseridas': inseridas,
+        'ja_existentes': ja_existentes,
+        'total_portal': len(portal_movs),
+        'total_banco': len(db_movs),
+        'suspeitos_extra_banco': suspeitos,
+    }
+
+
 # =====================================================
 # ✅ HISTÓRICO
 # =====================================================
