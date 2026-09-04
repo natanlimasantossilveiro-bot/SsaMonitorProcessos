@@ -391,7 +391,7 @@ def buscar_movimentacoes_do_processo(processo_id: int):
         WHERE m.processo_id = %s
           AND m.descricao IS NOT NULL
           AND LENGTH(TRIM(m.descricao)) > 5
-        ORDER BY m.data_movimento DESC, m.id DESC
+        ORDER BY m.data_movimento DESC, m.capturado_em DESC, m.id DESC
     """, (processo_id,))
     resultado = cursor.fetchall()
     cursor.close()
