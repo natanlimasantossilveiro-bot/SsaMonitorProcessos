@@ -2818,7 +2818,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 status = _ler_status_monitoramento()
                 if status.get("running"):
                     return self._responder_json({"ok": False, "message": "Já está em execução"})
-                subprocess.Popen([sys.executable, _SCRIPT_MANUAL], cwd=_BASE_DIR)
+                proc = subprocess.Popen([sys.executable, _SCRIPT_MANUAL], cwd=_BASE_DIR)
+                # Escreve running=True com o PID real antes de retornar ao JS,
+                # evitando race condition no primeiro poll (script ainda não escreveu o arquivo).
+                try:
+                    with open(_STATUS_FILE, "w") as _f:
+                        json.dump({
+                            "running": True,
+                            "iniciado_em": datetime.now().isoformat(),
+                            "source": "manual",
+                            "pid": proc.pid,
+                            "concluidos": 0,
+                            "total": 0,
+                            "orgao_atual": "",
+                        }, _f)
+                except Exception:
+                    pass
                 return self._responder_json({"ok": True, "message": "Monitoramento iniciado"})
 
             if not auth.csrf_valido(token, dados.get("csrf", "")):
