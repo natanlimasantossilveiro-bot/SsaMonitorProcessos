@@ -186,10 +186,19 @@ async def consultar_processo_ponta_grossa(processo):
             url_atual = page.url
             texto_pos_login = (await page.inner_text("body")).lower()
             log.info(f"URL apos login: {url_atual}")
+            log.info(f"Texto pos-login (200 chars): {texto_pos_login[:200]}")
 
-            if "login" in url_atual or "senha incorreta" in texto_pos_login \
-                    or "credenciais" in texto_pos_login or "inválid" in texto_pos_login:
-                log.error("Falha no login — credenciais incorretas ou captcha")
+            # Login falhou se ainda estiver no Keycloak/SSO ou contiver mensagem de erro
+            keycloak_ainda = "openid.oxy.elotech.com.br" in url_atual or "openid-connect/auth" in url_atual
+            erro_texto = any(p in texto_pos_login for p in (
+                "senha incorreta", "credenciais", "inválid", "invalido",
+                "usuario ou senha", "usuário ou senha", "account is not fully",
+            ))
+            if keycloak_ainda or "login" in url_atual or erro_texto:
+                await page.screenshot(path="/tmp/pg_login_falhou.png")
+                log.error(f"Falha no login — URL pos-login: {url_atual}")
+                log.error(f"Texto pagina pos-login: {texto_pos_login[:400]}")
+                log.error("Screenshot salvo em /tmp/pg_login_falhou.png")
                 await browser.close()
                 return {
                     "status": "ERRO_CONSULTA",
