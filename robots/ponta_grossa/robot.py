@@ -63,6 +63,23 @@ async def consultar_processo_ponta_grossa(processo):
 
             await page.screenshot(path="/tmp/pg_formulario.png")
 
+            # ── Tipo Processo (obrigatório — sempre "2 - OnLine") ────────
+            try:
+                campo_tipo = page.get_by_label("Tipo Processo", exact=False)
+                await campo_tipo.fill("Online")
+                await page.wait_for_timeout(1_500)
+                opcao = page.locator(
+                    "li:has-text('OnLine'), li:has-text('Online'), "
+                    ".v-list-item:has-text('OnLine'), .v-list-item:has-text('Online')"
+                ).first
+                if await opcao.count() > 0:
+                    await opcao.click()
+                    log.info("Tipo Processo selecionado: 2 - OnLine")
+                else:
+                    log.warning("Opcao OnLine nao encontrada no autocomplete")
+            except Exception as ex:
+                log.warning(f"Erro campo Tipo Processo: {ex}")
+
             # ── Preenche Número ───────────────────────────────────────────
             try:
                 await page.get_by_label("Número", exact=False).fill(numero)
