@@ -2,6 +2,7 @@ from playwright.async_api import async_playwright
 from datetime import datetime
 import re
 
+from pyvirtualdisplay import Display
 from utils.logger import get_logger
 
 log = get_logger("ponta_grossa")
@@ -32,9 +33,20 @@ async def consultar_processo_ponta_grossa(processo):
             "mensagem": "Login ou senha não cadastrados para este processo",
         }
 
+    display = Display(visible=False, size=(1280, 800))
+    display.start()
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(
+                headless=False,
+                executable_path="/usr/bin/google-chrome",
+                ignore_default_args=["--enable-automation", "--disable-infobars"],
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-blink-features=AutomationControlled",
+                ],
+            )
             context = await browser.new_context(
                 user_agent=(
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -219,3 +231,5 @@ async def consultar_processo_ponta_grossa(processo):
     except Exception as e:
         log.error(f"Erro na consulta: {e}")
         return {"status": "ERRO_CONSULTA", "mensagem": str(e)}
+    finally:
+        display.stop()
