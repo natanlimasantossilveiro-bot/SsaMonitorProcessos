@@ -100,7 +100,13 @@ async def consultar_processo_ponta_grossa(processo):
                     continue
 
             if not campo_login or not campo_senha:
-                log.error("Campos de login/senha não encontrados na página")
+                titulo = await page.title()
+                conteudo = (await page.inner_text("body"))[:800]
+                log.error(f"Campos de login/senha não encontrados na página")
+                log.error(f"Titulo da pagina: {titulo}")
+                log.error(f"Conteudo da pagina: {conteudo}")
+                await page.screenshot(path="/tmp/ponta_grossa_login_debug.png")
+                log.error("Screenshot salvo em /tmp/ponta_grossa_login_debug.png")
                 await browser.close()
                 return {
                     "status": "ERRO_CONSULTA",
