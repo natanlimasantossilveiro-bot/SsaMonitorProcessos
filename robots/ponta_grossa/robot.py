@@ -163,22 +163,44 @@ async def consultar_processo_ponta_grossa(processo):
                     "texto_completo": texto,
                 }
 
-            # ── Detecta status ────────────────────────────────────────────
-            if "finalizado" in texto_lower or "concluído" in texto_lower or "concluido" in texto_lower:
-                status_processo = "Finalizado"
-            elif "indeferido" in texto_lower:
-                status_processo = "Indeferido"
-            elif "deferido" in texto_lower:
-                status_processo = "Deferido"
-            elif "encerrado" in texto_lower:
-                status_processo = "Encerrado"
-            elif "em andamento" in texto_lower:
-                status_processo = "Em andamento"
-            elif "em análise" in texto_lower or "em analise" in texto_lower:
-                status_processo = "Em analise"
-            elif "aguardando" in texto_lower:
-                status_processo = "Em andamento"
+            # ── Detecta status a partir do campo "Situação" ──────────────
+            # Extrai o valor do campo Situação diretamente para evitar
+            # falso positivo por palavras que aparecem nos filtros da página
+            situacao_match = re.search(
+                r'Situa[çc][ãa]o\s*\n?\s*\d+\s*-\s*([^\n]+)',
+                texto,
+                re.IGNORECASE,
+            )
+            if situacao_match:
+                situacao_raw = situacao_match.group(1).strip().lower()
+                log.info(f"Situacao extraida do campo: {situacao_raw}")
             else:
+                situacao_raw = ""
+                log.warning("Campo Situacao nao encontrado — usando texto completo como fallback")
+
+            _MAP_STATUS = {
+                "em trâmite": "Em andamento",
+                "em tramite": "Em andamento",
+                "em andamento": "Em andamento",
+                "aguardando": "Em andamento",
+                "em análise": "Em analise",
+                "em analise": "Em analise",
+                "deferido": "Deferido",
+                "indeferido": "Indeferido",
+                "finalizado": "Finalizado",
+                "concluído": "Finalizado",
+                "concluido": "Finalizado",
+                "encerrado": "Encerrado",
+            }
+
+            status_processo = None
+            fonte = situacao_raw if situacao_raw else texto_lower
+            for chave, valor in _MAP_STATUS.items():
+                if chave in fonte:
+                    status_processo = valor
+                    break
+
+            if not status_processo:
                 log.warning("Status nao reconhecido — marcando como Em andamento")
                 status_processo = "Em andamento"
 
