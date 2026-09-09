@@ -208,12 +208,22 @@ async def consultar_processo_ponta_grossa(processo):
                 log.warning("Status nao reconhecido — marcando como Em andamento")
                 status_processo = "Em andamento"
 
-            # ── Extrai última movimentação ────────────────────────────────
+            # ── Extrai movimentações (linhas com data dd/mm/yyyy) ────────
             linhas = texto.split("\n")
             movimentacoes = [
                 l.strip() for l in linhas
                 if re.search(r"\d{2}/\d{2}/\d{4}", l.strip())
             ]
+
+            def _data_linha(linha):
+                m = re.search(r"\d{2}/\d{2}/\d{4}", linha)
+                try:
+                    return datetime.strptime(m.group(), "%d/%m/%Y") if m else datetime.min
+                except Exception:
+                    return datetime.min
+
+            movimentacoes.sort(key=_data_linha, reverse=True)
+            log.info(f"Movimentacoes extraidas: {len(movimentacoes)}")
 
             objeto = None
             for marcador in ("Assunto:", "Objeto:", "Descrição:", "Descricao:", "Tipo:"):
@@ -222,28 +232,14 @@ async def consultar_processo_ponta_grossa(processo):
                     objeto = texto[idx:idx + 500].strip().split("\n")[0].strip() or None
                     break
 
-            ultima_movimentacao = None
-            data_ultimo_movimento = None
-            if movimentacoes:
-                ultima_movimentacao = movimentacoes[-1]
-                match = re.search(r"\d{2}/\d{2}/\d{4}", ultima_movimentacao)
-                if match:
-                    try:
-                        data_ultimo_movimento = datetime.strptime(
-                            match.group(), "%d/%m/%Y"
-                        ).strftime("%Y-%m-%d")
-                    except Exception:
-                        pass
-
-            log.info(f"Status: {status_processo} | Data: {data_ultimo_movimento}")
+            log.info(f"Status: {status_processo} | Movimentacoes: {len(movimentacoes)}")
             await browser.close()
 
             return {
                 "status": "OK",
                 "mensagem": "Consulta realizada com sucesso",
                 "status_processo": status_processo,
-                "ultima_data_movimento": data_ultimo_movimento,
-                "ultima_movimentacao": ultima_movimentacao,
+                "movimentacoes": movimentacoes,
                 "texto_completo": texto,
                 "objeto": objeto,
             }
