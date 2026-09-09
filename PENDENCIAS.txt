@@ -1,0 +1,141 @@
+================================================================================
+SSA MONITOR PROCESSOS — LISTA DE PENDÊNCIAS
+Última atualização: 09/09/2026
+================================================================================
+
+LEGENDA:
+  [ ] = Pendente
+  [x] = Concluído
+  [?] = Aguarda decisão / informação externa
+  [~] = Parcialmente resolvido
+
+--------------------------------------------------------------------------------
+PRIORIDADE 1 — INTEGRIDADE DE DADOS
+--------------------------------------------------------------------------------
+
+[x] SJP — 202206024617358434
+    Problema: 19 movimentações no sistema, 18 no portal (entrada duplicada)
+    Resolução: Entradas órfãs deletadas do banco + filtro adicionado no robô SJP
+               para bloquear "Processo vinculado" nas próximas execuções.
+
+[x] SJP — 202309065614326802
+    Problema: 5 movimentações no sistema, 4 no portal (entrada duplicada)
+    Resolução: Mesmo fix acima — entradas deletadas, filtro ativo.
+
+--------------------------------------------------------------------------------
+PRIORIDADE 2 — PROCESSOS SEM MONITORAMENTO / COM ERRO
+--------------------------------------------------------------------------------
+
+[x] Ponta Grossa — 33648
+    Problema: Não estava sendo monitorado, 0 movimentações
+    Resolução: Robô corrigido para retornar lista de movimentações.
+               23 movimentações inseridas. Funcionando.
+
+[x] Ponta Grossa — 19734
+    Problema: Não estava sendo monitorado, 0 movimentações
+    Resolução: Mesmo fix acima. 23 movimentações inseridas. Funcionando.
+
+[~] Pinhais — 90451/2025
+    Problema: Processo estava cadastrado como Ponta Grossa (órgão errado).
+              Robô enviava número "904512025" (errado) ao portal de Pinhais.
+    Resolução parcial:
+      - Órgão corrigido para Pinhais (orgao_id=6)
+      - Município corrigido para "Pinhais"
+      - Parsing do número corrigido (agora envia 90451 + ano 2025 separados)
+    PENDENTE: Código verificador "66N9UL1O" parece incorreto — portal não retorna
+              resultado. Verificar com responsável pelo processo qual é o código
+              correto e atualizar:
+              UPDATE processos SET codigo = 'NOVO_CODIGO' WHERE id = 115;
+    URL portal: https://pinhais.atende.net/autoatendimento/servicos/consulta-de-processo-digital/detalhar/1
+
+[ ] Caieiras — 2269
+    Problema: Robô retorna "não encontrado", mas processo existe manualmente.
+              Porém, ao acessar manualmente, também não aparece resultado.
+              Não aparece erro no sistema (status sem falha visível).
+    A fazer: Investigar se o número/formato está correto no portal Caieiras.
+             Verificar qual formato exato o portal aceita.
+
+[ ] Curitiba — 01-151516/2026
+    Problema: Não está sendo monitorado, sem nenhuma movimentação.
+    A fazer: Aguarda decisão — robô Curitiba captura só a última data,
+             não o histórico completo. Decidir se estende o robô para capturar
+             histórico, ou manter como está.
+
+[ ] Curitiba — 01-151520/2026
+    Problema: Não está sendo monitorado, sem nenhuma movimentação.
+    A fazer: Mesma decisão de design do 01-151516/2026.
+
+[ ] Curitiba — 01-151528/2026
+    Problema: Não está sendo monitorado, sem nenhuma movimentação.
+    A fazer: Mesma decisão de design do 01-151516/2026.
+
+[ ] Curitiba — 01-077886
+    Problema: Não está sendo monitorado, sem nenhuma movimentação.
+    A fazer: Mesma decisão de design do 01-151516/2026.
+
+[ ] Curitiba — 01-191903/2026
+    Problema: Não está sendo monitorado, sem nenhuma movimentação.
+    A fazer: Mesma decisão de design do 01-151516/2026.
+
+[ ] Curitiba — 01-231107/2026
+    Problema: Não está sendo monitorado, sem nenhuma movimentação.
+    A fazer: Mesma decisão de design do 01-151516/2026.
+
+--------------------------------------------------------------------------------
+PRIORIDADE 3 — QUALIDADE DE DADOS / MOVIMENTAÇÕES INCOMPLETAS
+--------------------------------------------------------------------------------
+
+[ ] Franco da Rocha — 2613
+    Problema: Última movimentação real em fevereiro/2026, porém no sistema
+              não consta nenhuma movimentação.
+    A fazer: Investigar robô Franco da Rocha — ele pode estar capturando
+             apenas a última data (sem histórico), similar ao Curitiba.
+
+[ ] Franco da Rocha — 2616
+    Problema: Processo sem movimentações no sistema.
+    A fazer: Mesma investigação do 2613.
+
+[ ] Franco da Rocha — 9574
+    Problema: Data da última movimentação aparece corretamente no sistema,
+              mas as movimentações individuais não são exibidas.
+    A fazer: Verificar se o robô retorna `ultima_data_movimento` (sem histórico)
+             ou `movimentacoes` (com lista). Corrigir para retornar lista.
+
+[ ] Pinhais — 18811
+    Problema: Deveria ter 5 movimentações, consta apenas 4. A movimentação
+              faltante refere-se a "processos apensados".
+    A fazer: Verificar se o portal exibe processos apensados como movimentação
+             e se o robô atendenet_v2 captura esse tipo de entrada.
+             PERGUNTA: É esperado não capturar apensados? Confirmar com usuário.
+
+[ ] Pinhais — 13659
+    Problema: Informações de processos apensados não registradas pelo robô.
+    A fazer: Mesma análise do 18811.
+
+--------------------------------------------------------------------------------
+PRIORIDADE 4 — PROCESSOS ESIC (STATUS ESCLARECIDO)
+--------------------------------------------------------------------------------
+
+[x] ESIC — 202403130816576741
+    Problema original: Não conseguia verificar manualmente / processo não encontrado.
+    Resolução: Processo estava encerrado no portal. Comportamento esperado.
+               Não há problema no robô.
+
+[x] ESIC — 202403135515309328
+    Problema original: Processo não encontrado na tentativa manual.
+    Resolução: Mesma situação acima — processo encerrado, sem problema no sistema.
+
+--------------------------------------------------------------------------------
+NOTAS GERAIS
+--------------------------------------------------------------------------------
+
+- Robô atendenet_v2 (Pinhais/Araucária): fix de parsing de número deployado
+  em 09/09/2026 (commit e4e6985). Número "90451/2025" agora é separado
+  corretamente em numero=90451 e ano=2025.
+
+- Robô ponta_grossa: screenshots de debug removidas (/tmp/pg_formulario.png
+  e /tmp/pg_resultado_*.png). Commit pendente.
+
+- Robô SJP: filtro "Processo vinculado" ativo. Entradas duplicadas removidas.
+
+================================================================================

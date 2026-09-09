@@ -61,8 +61,6 @@ async def consultar_processo_ponta_grossa(processo):
             await page.goto(CONSULTA_URL, wait_until="networkidle", timeout=30_000)
             await page.wait_for_timeout(3_000)
 
-            await page.screenshot(path="/tmp/pg_formulario.png")
-
             # ── Tipo Processo (obrigatório — sempre "2 - OnLine") ────────
             try:
                 campo_tipo = page.get_by_label("Tipo Processo", exact=False)
@@ -144,7 +142,6 @@ async def consultar_processo_ponta_grossa(processo):
             await page.wait_for_load_state("networkidle", timeout=15_000)
             await page.wait_for_timeout(3_000)
 
-            await page.screenshot(path=f"/tmp/pg_resultado_{numero}.png")
             texto = await page.inner_text("body")
             texto_lower = texto.lower()
             log.info(f"Resultado pesquisa (400 chars): {texto[:400]}")
