@@ -168,9 +168,15 @@ class RobotAtendeNetV2:
             log.info("Iframe do formulario localizado")
 
             # ── Dados do processo ─────────────────────────────────────────────
-            numero = processo.get("numero_processo")
-            ano = processo.get("exercicio") or ""
-            numero_base = re.sub(r"[^0-9]", "", str(numero))
+            numero_raw = str(processo.get("numero_processo") or "")
+            ano = str(processo.get("exercicio") or "")
+            if "/" in numero_raw:
+                partes = numero_raw.split("/", 1)
+                numero_base = re.sub(r"[^0-9]", "", partes[0])
+                if not ano:
+                    ano = partes[1].strip()
+            else:
+                numero_base = re.sub(r"[^0-9]", "", numero_raw)
             log.info(f"Numero: {numero_base} | Ano: {ano} | Codigo: {codigo}")
 
             # ── Detecta tipo de formulario ────────────────────────────────────
