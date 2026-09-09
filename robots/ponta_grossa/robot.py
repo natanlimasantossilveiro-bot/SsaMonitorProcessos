@@ -210,8 +210,11 @@ async def consultar_processo_ponta_grossa(processo):
             # ── 2. Acessa URL individual do processo ─────────────────────
             log.info(f"Acessando processo: {url_proc}")
             await page.goto(url_proc, wait_until="networkidle", timeout=30_000)
+            await page.wait_for_timeout(3_000)  # aguarda SPA renderizar
 
             texto = await page.inner_text("body")
+            log.info(f"Pagina processo (300 chars): {texto[:300]}")
+            await page.screenshot(path=f"/tmp/pg_processo_{numero.replace('/', '_')}.png")
             texto_lower = texto.lower()
             log.debug(f"Pagina do processo (300 chars): {texto[:300]}")
 
