@@ -57,8 +57,25 @@ async def consultar_processo_ponta_grossa(processo):
             page = await context.new_page()
 
             # ── 1. Login ─────────────────────────────────────────────────
-            log.info(f"Acessando login: {LOGIN_URL}")
-            await page.goto(LOGIN_URL, wait_until="networkidle", timeout=30_000)
+            log.info(f"Acessando pagina inicial: {BASE_URL}")
+            await page.goto(BASE_URL, wait_until="networkidle", timeout=30_000)
+
+            # Clica no botão "Entrar" da página principal (login URL mudou)
+            try:
+                entrar = page.locator(
+                    "a:has-text('Entrar'), button:has-text('Entrar'), "
+                    "a:has-text('Login'), button:has-text('Login'), "
+                    "a[href*='login'], a[href*='entrar']"
+                ).first
+                if await entrar.count() > 0:
+                    log.info("Botao Entrar encontrado — clicando")
+                    await entrar.click()
+                    await page.wait_for_load_state("networkidle", timeout=15_000)
+                else:
+                    log.warning("Botao Entrar nao encontrado — tentando URL de login direta")
+                    await page.goto(LOGIN_URL, wait_until="networkidle", timeout=30_000)
+            except Exception as ex:
+                log.warning(f"Erro ao clicar Entrar: {ex}")
 
             # SPA: aguarda o formulário de login ser renderizado pelo JS
             try:
