@@ -60,6 +60,18 @@ async def consultar_processo_ponta_grossa(processo):
             log.info(f"Acessando login: {LOGIN_URL}")
             await page.goto(LOGIN_URL, wait_until="networkidle", timeout=30_000)
 
+            # SPA: aguarda o formulário de login ser renderizado pelo JS
+            try:
+                await page.wait_for_selector(
+                    "input[type='email'], input[name='email'], input[name='login'], "
+                    "input[placeholder*='e-mail' i], input[placeholder*='usuario' i], "
+                    "input[placeholder*='cpf' i], input[type='password']",
+                    timeout=15_000,
+                )
+                log.info("Formulario de login renderizado")
+            except Exception:
+                log.warning("Timeout aguardando formulario de login — tentando assim mesmo")
+
             # Tenta seletores comuns de e-mail/login em portais Elotech
             seletores_login = [
                 "input[type='email']",
