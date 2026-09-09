@@ -89,6 +89,8 @@ async def executar_consulta_sjp(processo):
                     continue
                 if "Data" in texto_linha and "Descricao" in texto_linha:
                     continue
+                if "Processo vinculado" in texto_linha:
+                    continue
                 movimentacoes.append(texto_linha)
 
             log.info(f"Movimentacoes extraidas: {len(movimentacoes)}")
