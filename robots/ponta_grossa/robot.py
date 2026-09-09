@@ -7,30 +7,31 @@ from utils.logger import get_logger
 
 log = get_logger("ponta_grossa")
 
-BASE_URL  = "https://pontagrossa.oxy.elotech.com.br/governo-digital"
-LOGIN_URL = f"{BASE_URL}/login"
+CONSULTA_URL = "https://servicos.pontagrossa.pr.gov.br/protocolo/consultaProcesso"
 
 
 async def consultar_processo_ponta_grossa(processo):
-    numero    = str(processo.get("numero_processo")).strip()
-    url_proc  = processo.get("acesso")
-    login     = processo.get("login_acesso")
-    senha     = processo.get("senha_acesso")
+    numero_completo = str(processo.get("numero_processo", "")).strip()
+    acesso = str(processo.get("acesso") or "").strip()
+    cpf_cnpj = processo.get("login_acesso") or ""
 
-    log.info(f"Iniciando consulta — numero: {numero}")
+    # Extrai número e ano: "90451/2025" → ("90451", "2025")
+    # Para processos sem ano no número, usa o campo acesso como ano
+    if "/" in numero_completo:
+        partes = numero_completo.split("/", 1)
+        numero = partes[0].strip()
+        ano = partes[1].strip()
+    else:
+        numero = numero_completo
+        ano = acesso if (acesso.isdigit() and len(acesso) == 4) else ""
 
-    if not url_proc:
-        log.warning(f"Campo 'acesso' vazio para processo {numero} — sem URL individual cadastrada")
+    log.info(f"Iniciando consulta — numero: {numero}, ano: {ano}")
+
+    if not cpf_cnpj:
+        log.warning(f"CPF/CNPJ ausente para processo {numero_completo}")
         return {
             "status": "ERRO_CONSULTA",
-            "mensagem": "URL individual do processo não cadastrada (campo 'acesso' vazio)",
-        }
-
-    if not login or not senha:
-        log.warning(f"Credenciais ausentes para processo {numero}")
-        return {
-            "status": "ERRO_CONSULTA",
-            "mensagem": "Login ou senha não cadastrados para este processo",
+            "mensagem": "CPF/CNPJ não cadastrado para este processo",
         }
 
     display = Display(visible=False, size=(1280, 800))
@@ -56,185 +57,97 @@ async def consultar_processo_ponta_grossa(processo):
             )
             page = await context.new_page()
 
-            # ── 1. Login ─────────────────────────────────────────────────
-            log.info(f"Acessando pagina inicial: {BASE_URL}")
-            await page.goto(BASE_URL, wait_until="networkidle", timeout=30_000)
-            await page.wait_for_timeout(3_000)  # aguarda renderizacao SPA
+            log.info(f"Acessando: {CONSULTA_URL}")
+            await page.goto(CONSULTA_URL, wait_until="networkidle", timeout=30_000)
+            await page.wait_for_timeout(3_000)
 
-            await page.screenshot(path="/tmp/pg_base_url.png")
-            conteudo_base = (await page.inner_text("body"))[:500]
-            log.info(f"BASE_URL carregada — conteudo: {conteudo_base[:200]}")
+            await page.screenshot(path="/tmp/pg_formulario.png")
 
-            # Clica no botão "Entrar" da página principal (login URL mudou)
+            # ── Preenche Número ───────────────────────────────────────────
             try:
-                entrar = page.locator(
-                    "a:has-text('Entrar'), button:has-text('Entrar'), "
-                    "a:has-text('Login'), button:has-text('Login'), "
-                    "a[href*='login'], a[href*='entrar']"
-                ).first
-                if await entrar.count() > 0:
-                    log.info("Botao Entrar encontrado — clicando")
-                    await entrar.click()
-                    await page.wait_for_load_state("networkidle", timeout=15_000)
-                    await page.wait_for_timeout(2_000)
-                else:
-                    log.warning("Botao Entrar nao encontrado na pagina inicial")
-                    todos_links = await page.locator("a, button").all_text_contents()
-                    log.warning(f"Links/botoes disponiveis: {todos_links[:20]}")
+                await page.get_by_label("Número", exact=False).fill(numero)
+                log.info(f"Campo Numero preenchido: {numero}")
             except Exception as ex:
-                log.warning(f"Erro ao clicar Entrar: {ex}")
+                log.warning(f"get_by_label Numero falhou ({ex}) — tentando seletores alternativos")
+                for sel in ["input[placeholder*='úmero' i]", "input[name*='numero' i]",
+                            "input[name*='num' i]"]:
+                    try:
+                        el = page.locator(sel).first
+                        if await el.count() > 0 and await el.is_visible():
+                            await el.fill(numero)
+                            log.info(f"Campo Numero preenchido via {sel}")
+                            break
+                    except Exception:
+                        continue
 
-            # SPA: aguarda o formulário de login ser renderizado pelo JS
+            # ── Preenche Ano ──────────────────────────────────────────────
+            if ano:
+                try:
+                    await page.get_by_label("Ano", exact=False).fill(ano)
+                    log.info(f"Campo Ano preenchido: {ano}")
+                except Exception as ex:
+                    log.warning(f"get_by_label Ano falhou ({ex}) — tentando seletores alternativos")
+                    for sel in ["input[placeholder*='ano' i]", "input[name*='ano' i]"]:
+                        try:
+                            el = page.locator(sel).first
+                            if await el.count() > 0 and await el.is_visible():
+                                await el.fill(ano)
+                                log.info(f"Campo Ano preenchido via {sel}")
+                                break
+                        except Exception:
+                            continue
+
+            # ── Preenche CPF/CNPJ ou Senha ────────────────────────────────
             try:
-                await page.wait_for_selector(
-                    "input[type='email'], input[name='email'], input[name='login'], "
-                    "input[placeholder*='e-mail' i], input[placeholder*='usuario' i], "
-                    "input[placeholder*='cpf' i], input[type='password']",
-                    timeout=15_000,
-                )
-                log.info("Formulario de login renderizado")
-            except Exception:
-                log.warning("Timeout aguardando formulario de login — tentando assim mesmo")
+                await page.get_by_label("CPF", exact=False).fill(cpf_cnpj)
+                log.info("Campo CPF/CNPJ preenchido")
+            except Exception as ex:
+                log.warning(f"get_by_label CPF falhou ({ex}) — tentando seletores alternativos")
+                for sel in ["input[placeholder*='cpf' i]", "input[placeholder*='cnpj' i]",
+                            "input[name*='cpf' i]", "input[name*='senha' i]",
+                            "input[placeholder*='senha' i]"]:
+                    try:
+                        el = page.locator(sel).first
+                        if await el.count() > 0 and await el.is_visible():
+                            await el.fill(cpf_cnpj)
+                            log.info(f"Campo CPF/CNPJ preenchido via {sel}")
+                            break
+                    except Exception:
+                        continue
 
-            # Tenta seletores comuns de e-mail/login em portais Elotech
-            seletores_login = [
-                "input[type='email']",
-                "input[name='email']",
-                "input[name='login']",
-                "input[placeholder*='e-mail' i]",
-                "input[placeholder*='email' i]",
-                "input[placeholder*='usuário' i]",
-                "input[placeholder*='usuario' i]",
-                "input[placeholder*='cpf' i]",
-            ]
-            seletores_senha = [
-                "input[type='password']",
-                "input[name='senha']",
-                "input[name='password']",
-            ]
+            # ── Clica em Pesquisar ────────────────────────────────────────
+            try:
+                await page.locator(
+                    "button:has-text('PESQUISAR'), button:has-text('Pesquisar')"
+                ).first.click()
+                log.info("Botao PESQUISAR clicado")
+            except Exception as ex:
+                log.warning(f"Erro ao clicar PESQUISAR: {ex}")
 
-            campo_login = None
-            for sel in seletores_login:
-                try:
-                    el = page.locator(sel).first
-                    if await el.count() > 0 and await el.is_visible():
-                        tipo = (await el.get_attribute("type") or "text").lower()
-                        if tipo in ("submit", "button", "reset", "hidden", "image"):
-                            log.warning(f"Seletor {sel} casou com input[type={tipo}] — ignorando")
-                            continue
-                        campo_login = el
-                        log.info(f"Campo login encontrado: {sel} (type={tipo})")
-                        break
-                except Exception:
-                    continue
+            await page.wait_for_load_state("networkidle", timeout=15_000)
+            await page.wait_for_timeout(3_000)
 
-            campo_senha = None
-            campo_senha_sel = None
-            for sel in seletores_senha:
-                try:
-                    el = page.locator(sel).first
-                    if await el.count() > 0 and await el.is_visible():
-                        tipo = (await el.get_attribute("type") or "").lower()
-                        if tipo == "submit":
-                            log.warning(f"Seletor {sel} casou com input[type=submit] — ignorando")
-                            continue
-                        campo_senha = el
-                        campo_senha_sel = sel
-                        log.info(f"Campo senha encontrado: {sel} (type={tipo})")
-                        break
-                except Exception:
-                    continue
-
-            if not campo_login or not campo_senha:
-                titulo = await page.title()
-                conteudo = (await page.inner_text("body"))[:800]
-                log.error(f"Campos de login/senha não encontrados na página")
-                log.error(f"Titulo da pagina: {titulo}")
-                log.error(f"Conteudo da pagina: {conteudo}")
-                await page.screenshot(path="/tmp/ponta_grossa_login_debug.png")
-                log.error("Screenshot salvo em /tmp/ponta_grossa_login_debug.png")
-                await browser.close()
-                return {
-                    "status": "ERRO_CONSULTA",
-                    "mensagem": "Campos de login não encontrados no portal Ponta Grossa",
-                }
-
-            await campo_login.fill(login)
-            await campo_senha.fill(senha)
-            log.info("Credenciais preenchidas")
-
-            # Submete login
-            botao_login = None
-            for sel in ["button[type='submit']", "button:has-text('Entrar')",
-                        "button:has-text('Acessar')", "button:has-text('Login')"]:
-                try:
-                    el = page.locator(sel).first
-                    if await el.count() > 0 and await el.is_visible():
-                        botao_login = el
-                        break
-                except Exception:
-                    continue
-
-            if botao_login:
-                await botao_login.click()
-            else:
-                await campo_senha.press("Enter")
-
-            await page.wait_for_load_state("networkidle", timeout=20_000)
-
-            # Verifica se autenticou
-            url_atual = page.url
-            texto_pos_login = (await page.inner_text("body")).lower()
-            log.info(f"URL apos login: {url_atual}")
-            log.info(f"Texto pos-login (200 chars): {texto_pos_login[:200]}")
-
-            # Login falhou se ainda estiver no Keycloak/SSO ou contiver mensagem de erro
-            keycloak_ainda = "openid.oxy.elotech.com.br" in url_atual or "openid-connect/auth" in url_atual
-            erro_texto = any(p in texto_pos_login for p in (
-                "senha incorreta", "credenciais", "inválid", "invalido",
-                "usuario ou senha", "usuário ou senha", "account is not fully",
-            ))
-            if keycloak_ainda or "login" in url_atual or erro_texto:
-                await page.screenshot(path="/tmp/pg_login_falhou.png")
-                log.error(f"Falha no login — URL pos-login: {url_atual}")
-                log.error(f"Texto pagina pos-login: {texto_pos_login[:400]}")
-                log.error("Screenshot salvo em /tmp/pg_login_falhou.png")
-                await browser.close()
-                return {
-                    "status": "ERRO_CONSULTA",
-                    "mensagem": "Falha no login — credenciais incorretas ou portal alterado",
-                }
-
-            log.info("Login realizado com sucesso")
-
-            # ── 2. Acessa URL individual do processo ─────────────────────
-            log.info(f"Acessando processo: {url_proc}")
-            await page.goto(url_proc, wait_until="networkidle", timeout=30_000)
-            await page.wait_for_timeout(3_000)  # aguarda SPA renderizar
-
+            await page.screenshot(path=f"/tmp/pg_resultado_{numero}.png")
             texto = await page.inner_text("body")
-            log.info(f"Pagina processo (300 chars): {texto[:300]}")
-            await page.screenshot(path=f"/tmp/pg_processo_{numero.replace('/', '_')}.png")
             texto_lower = texto.lower()
-            log.debug(f"Pagina do processo (300 chars): {texto[:300]}")
+            log.info(f"Resultado pesquisa (400 chars): {texto[:400]}")
 
-            # ── 3. Verifica processo não encontrado ──────────────────────
+            # ── Verifica não encontrado ───────────────────────────────────
             nao_encontrado = any(f in texto_lower for f in (
-                "não encontrado", "nao encontrado",
-                "registro não encontrado", "sem resultado",
-                "404", "página não encontrada",
+                "nenhum resultado", "não encontrado", "nao encontrado",
+                "sem resultado", "nenhum registro", "0 resultado",
             ))
             if nao_encontrado:
-                log.warning(f"Processo {numero} nao encontrado na URL: {url_proc}")
+                log.warning(f"Processo {numero_completo} nao encontrado no portal")
                 await browser.close()
                 return {
                     "status": "PROCESSO_NAO_ENCONTRADO",
-                    "mensagem": "Processo não encontrado na URL cadastrada",
+                    "mensagem": "Processo não encontrado no portal",
                     "texto_completo": texto,
                 }
 
-            # ── 4. Detecta status ────────────────────────────────────────
-            if "finalizado" in texto_lower:
+            # ── Detecta status ────────────────────────────────────────────
+            if "finalizado" in texto_lower or "concluído" in texto_lower or "concluido" in texto_lower:
                 status_processo = "Finalizado"
             elif "indeferido" in texto_lower:
                 status_processo = "Indeferido"
@@ -249,10 +162,10 @@ async def consultar_processo_ponta_grossa(processo):
             elif "aguardando" in texto_lower:
                 status_processo = "Em andamento"
             else:
-                log.warning("Status nao reconhecido, marcando como Em andamento")
+                log.warning("Status nao reconhecido — marcando como Em andamento")
                 status_processo = "Em andamento"
 
-            # ── 5. Extrai última movimentação ────────────────────────────
+            # ── Extrai última movimentação ────────────────────────────────
             linhas = texto.split("\n")
             movimentacoes = [
                 l.strip() for l in linhas
@@ -260,7 +173,7 @@ async def consultar_processo_ponta_grossa(processo):
             ]
 
             objeto = None
-            for marcador in ("Assunto:", "Objeto:", "Descrição:", "Descricao:"):
+            for marcador in ("Assunto:", "Objeto:", "Descrição:", "Descricao:", "Tipo:"):
                 if marcador in texto:
                     idx = texto.index(marcador) + len(marcador)
                     objeto = texto[idx:idx + 500].strip().split("\n")[0].strip() or None
