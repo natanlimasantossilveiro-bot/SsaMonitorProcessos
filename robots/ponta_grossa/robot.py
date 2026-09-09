@@ -118,8 +118,12 @@ async def consultar_processo_ponta_grossa(processo):
                 try:
                     el = page.locator(sel).first
                     if await el.count() > 0 and await el.is_visible():
+                        tipo = (await el.get_attribute("type") or "text").lower()
+                        if tipo in ("submit", "button", "reset", "hidden", "image"):
+                            log.warning(f"Seletor {sel} casou com input[type={tipo}] — ignorando")
+                            continue
                         campo_login = el
-                        log.info(f"Campo login encontrado: {sel}")
+                        log.info(f"Campo login encontrado: {sel} (type={tipo})")
                         break
                 except Exception:
                     continue
