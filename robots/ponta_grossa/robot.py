@@ -125,12 +125,18 @@ async def consultar_processo_ponta_grossa(processo):
                     continue
 
             campo_senha = None
+            campo_senha_sel = None
             for sel in seletores_senha:
                 try:
                     el = page.locator(sel).first
                     if await el.count() > 0 and await el.is_visible():
+                        tipo = (await el.get_attribute("type") or "").lower()
+                        if tipo == "submit":
+                            log.warning(f"Seletor {sel} casou com input[type=submit] — ignorando")
+                            continue
                         campo_senha = el
-                        log.info("Campo senha encontrado")
+                        campo_senha_sel = sel
+                        log.info(f"Campo senha encontrado: {sel} (type={tipo})")
                         break
                 except Exception:
                     continue
