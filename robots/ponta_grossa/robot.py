@@ -59,6 +59,11 @@ async def consultar_processo_ponta_grossa(processo):
             # ── 1. Login ─────────────────────────────────────────────────
             log.info(f"Acessando pagina inicial: {BASE_URL}")
             await page.goto(BASE_URL, wait_until="networkidle", timeout=30_000)
+            await page.wait_for_timeout(3_000)  # aguarda renderizacao SPA
+
+            await page.screenshot(path="/tmp/pg_base_url.png")
+            conteudo_base = (await page.inner_text("body"))[:500]
+            log.info(f"BASE_URL carregada — conteudo: {conteudo_base[:200]}")
 
             # Clica no botão "Entrar" da página principal (login URL mudou)
             try:
@@ -71,9 +76,11 @@ async def consultar_processo_ponta_grossa(processo):
                     log.info("Botao Entrar encontrado — clicando")
                     await entrar.click()
                     await page.wait_for_load_state("networkidle", timeout=15_000)
+                    await page.wait_for_timeout(2_000)
                 else:
-                    log.warning("Botao Entrar nao encontrado — tentando URL de login direta")
-                    await page.goto(LOGIN_URL, wait_until="networkidle", timeout=30_000)
+                    log.warning("Botao Entrar nao encontrado na pagina inicial")
+                    todos_links = await page.locator("a, button").all_text_contents()
+                    log.warning(f"Links/botoes disponiveis: {todos_links[:20]}")
             except Exception as ex:
                 log.warning(f"Erro ao clicar Entrar: {ex}")
 
