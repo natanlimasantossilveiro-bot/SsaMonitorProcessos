@@ -163,40 +163,44 @@ async def consultar_processo_ponta_grossa(processo):
                     "texto_completo": texto,
                 }
 
-            # ── Detecta status a partir do campo "Situação" ──────────────
-            # Extrai o valor do campo Situação diretamente para evitar
-            # falso positivo por palavras que aparecem nos filtros da página
-            situacao_match = re.search(
-                r'Situa[çc][ãa]o\s*\n?\s*\d+\s*-\s*([^\n]+)',
-                texto,
+            # ── Detecta status a partir da tabela de Trâmites ────────────
+            # Localiza a seção "Trâmites" para evitar falso positivo com
+            # as opções de filtro da página (ex: "Finalizado" no dropdown)
+            tramites_m = re.search(r'Tr[aâ]mites\b(.+)', texto, re.IGNORECASE | re.DOTALL)
+            tramites_texto = tramites_m.group(1) if tramites_m else texto
+            if not tramites_m:
+                log.warning("Secao Tramites nao encontrada — usando texto completo")
+
+            # Dentro da seção, o status aparece como "N - Status" na coluna Situação
+            # A ordem dos rows é decrescente (maior = mais recente), então pega o primeiro match
+            _SITUACAO_RE = re.compile(
+                r'\d+\s*-\s*(Em\s+tr[aâ]mite|Em\s+andamento|Em\s+an[aá]lise'
+                r'|Aguardando|Finalizado|Conclu[íi]do|Deferido|Indeferido|Encerrado)',
                 re.IGNORECASE,
             )
-            if situacao_match:
-                situacao_raw = situacao_match.group(1).strip().lower()
-                log.info(f"Situacao extraida do campo: {situacao_raw}")
+            situacao_m = _SITUACAO_RE.search(tramites_texto)
+            if situacao_m:
+                situacao_raw = situacao_m.group(1).strip()
+                log.info(f"Situacao extraida da tabela Tramites: {situacao_raw}")
             else:
                 situacao_raw = ""
-                log.warning("Campo Situacao nao encontrado — usando texto completo como fallback")
+                log.warning("Situacao nao encontrada na tabela Tramites")
 
-            _MAP_STATUS = {
-                "em trâmite": "Em andamento",
-                "em tramite": "Em andamento",
-                "em andamento": "Em andamento",
-                "aguardando": "Em andamento",
-                "em análise": "Em analise",
-                "em analise": "Em analise",
-                "deferido": "Deferido",
-                "indeferido": "Indeferido",
-                "finalizado": "Finalizado",
-                "concluído": "Finalizado",
-                "concluido": "Finalizado",
-                "encerrado": "Encerrado",
-            }
+            _MAP_STATUS = [
+                (r'em\s+tr[aâ]mite', "Em andamento"),
+                (r'em\s+andamento', "Em andamento"),
+                (r'aguardando', "Em andamento"),
+                (r'em\s+an[aá]lise', "Em analise"),
+                (r'indeferido', "Indeferido"),
+                (r'deferido', "Deferido"),
+                (r'finalizado', "Finalizado"),
+                (r'conclu[íi]do', "Finalizado"),
+                (r'encerrado', "Encerrado"),
+            ]
 
             status_processo = None
-            fonte = situacao_raw if situacao_raw else texto_lower
-            for chave, valor in _MAP_STATUS.items():
-                if chave in fonte:
+            for padrao, valor in _MAP_STATUS:
+                if re.search(padrao, situacao_raw, re.IGNORECASE):
                     status_processo = valor
                     break
 
