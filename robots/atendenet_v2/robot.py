@@ -361,6 +361,38 @@ class RobotAtendeNetV2:
 
                 log.info(f"[objeto] texto capturado ({len(texto_info)} chars): {repr(texto_info[:500])}")
 
+                # Pagina pode ainda estar carregando — aguarda e rele se conteudo insuficiente
+                if len(texto_info) < 2000:
+                    log.info("[objeto] conteudo insuficiente, aguardando mais 10s")
+                    await tab.sleep(10)
+                    texto_info = str(await tab.evaluate(f"""
+                    (() => {{
+                        {_JS_EMBED_DOC}
+                        const [doc] = __embedDoc();
+                        if (!doc || !doc.body) return '';
+                        function textoCompleto(el) {{
+                            let r = '';
+                            for (const n of el.childNodes) {{
+                                if (n.nodeType === 3) {{
+                                    r += n.textContent;
+                                }} else if (n.tagName === 'INPUT' && n.type !== 'hidden') {{
+                                    r += n.value;
+                                }} else if (n.tagName === 'TEXTAREA') {{
+                                    r += n.value;
+                                }} else if (n.tagName === 'SELECT') {{
+                                    const opt = n.options && n.options[n.selectedIndex];
+                                    r += opt ? opt.text : '';
+                                }} else if (n.tagName && n.tagName !== 'SCRIPT' && n.tagName !== 'STYLE') {{
+                                    r += textoCompleto(n);
+                                }}
+                            }}
+                            return r;
+                        }}
+                        return textoCompleto(doc.body);
+                    }})()
+                    """) or "")
+                    log.info(f"[objeto] texto apos espera extra ({len(texto_info)} chars)")
+
                 _MARCADORES_OBJETO = [
                     "Observação de Abertura\t",
                     "Observação de Abertura\n",
