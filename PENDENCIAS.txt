@@ -55,32 +55,31 @@ PRIORIDADE 2 — PROCESSOS SEM MONITORAMENTO / COM ERRO
                limitação do portal, não do robô. 1 movimentação capturada (Em Andamento 30/01/2026).
                Commit: 9f3245b
 
-[~] Curitiba — 01-151516/2026
+[x] Curitiba — 01-151516/2026
     Problema: Robô retornava CASO 2 (ultima_data_movimento) — movimentações nunca inseridas.
-    Resolução parcial: Parser agora extrai TODOS os blocos "Em:/Para Unidade:" da página
-    de resultado (CASO 1). Se o portal Curitiba mostrar histórico, todos os tramites serão
-    capturados; se mostrar só o estado atual, ao menos 1 movimentação será inserida.
-    Commits: (pendente deploy VPS). Aguarda verificação no próximo ciclo.
+    Resolução: Parser agora extrai TODOS os blocos "Em:/Para Unidade:" da página de resultado
+               e retorna como lista movimentacoes (CASO 1). Portal Curitiba exibe histórico
+               completo de tramitação. 5 movimentações inseridas. Commit: fbb1513.
 
-[~] Curitiba — 01-151520/2026
+[x] Curitiba — 01-151520/2026
     Problema: Mesmo do 01-151516/2026.
-    Resolução parcial: Mesmo fix acima.
+    Resolução: Mesmo fix. 5 movimentações inseridas.
 
-[~] Curitiba — 01-151528/2026
+[x] Curitiba — 01-151528/2026
     Problema: Mesmo do 01-151516/2026.
-    Resolução parcial: Mesmo fix acima.
+    Resolução: Mesmo fix. 5 movimentações inseridas.
 
-[~] Curitiba — 01-077886
+[x] Curitiba — 01-077886
     Problema: Mesmo do 01-151516/2026.
-    Resolução parcial: Mesmo fix acima.
+    Resolução: Mesmo fix. 5 movimentações inseridas.
 
-[~] Curitiba — 01-191903/2026
+[x] Curitiba — 01-191903/2026
     Problema: Mesmo do 01-151516/2026.
-    Resolução parcial: Mesmo fix acima.
+    Resolução: Mesmo fix. 6 movimentações inseridas.
 
-[~] Curitiba — 01-231107/2026
+[x] Curitiba — 01-231107/2026
     Problema: Mesmo do 01-151516/2026.
-    Resolução parcial: Mesmo fix acima.
+    Resolução: Mesmo fix. Movimentações inseridas e sincronizando.
 
 --------------------------------------------------------------------------------
 PRIORIDADE 3 — QUALIDADE DE DADOS / MOVIMENTAÇÕES INCOMPLETAS
