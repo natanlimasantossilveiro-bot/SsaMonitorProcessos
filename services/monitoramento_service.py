@@ -283,22 +283,13 @@ async def monitorar_processos_ativos():
                                 break
 
                         status_processo = "Em andamento"
-
-                        import re
-
-                        datas = re.findall(r"\d{2}/\d{2}/\d{4}", linha_processo or "")
-
-                        data_ultimo_movimento = None
-                        if datas:
-                            data_convertida = datetime.strptime(datas[-1], "%d/%m/%Y")
-                            data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
+                        movimentacao = linha_processo or ""
 
                         resultado_individual = {
                             "status": "OK",
                             "mensagem": "Consulta realizada com sucesso",
                             "status_processo": status_processo,
-                            "ultima_data_movimento": data_ultimo_movimento,
-                            "ultima_movimentacao": linha_processo,
+                            "movimentacoes": [movimentacao] if movimentacao else [],
                         }
 
                     status = resultado_individual.get("status", "OK")

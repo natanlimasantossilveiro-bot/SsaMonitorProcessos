@@ -40,8 +40,6 @@ async def consultar_processo_franco_rocha(processo):
             log.info("Login realizado")
 
             texto = await page.inner_text("body")
-            log.info(f"Texto lista (3000 chars): {texto[:3000]}")
-
             numero_formatado = numero.zfill(10)
 
             if numero_formatado not in texto:
@@ -52,6 +50,19 @@ async def consultar_processo_franco_rocha(processo):
                     "mensagem": "Processo nao encontrado na lista",
                     "texto_completo": texto,
                 }
+
+            # Diagnóstico: abre a página de detalhe para verificar se há histórico
+            try:
+                row = page.locator(f"tr:has-text('{numero_formatado}')").first
+                if await row.count() > 0:
+                    await row.click()
+                    await page.wait_for_timeout(3000)
+                    texto_detalhe = await page.inner_text("body")
+                    log.info(f"Texto detalhe {numero} (3000 chars): {texto_detalhe[:3000]}")
+                else:
+                    log.warning(f"Linha {numero_formatado} nao encontrada para clicar")
+            except Exception as ex:
+                log.warning(f"Clique no detalhe falhou: {ex}")
 
             linhas = texto.split("\n")
             linha_processo = None
