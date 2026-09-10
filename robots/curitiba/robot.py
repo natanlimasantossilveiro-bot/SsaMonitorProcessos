@@ -85,7 +85,8 @@ async def consultar_processo_curitiba(processo):
             conteudo = await pagina_resultado.text_content("body")
             dados_extraidos = extrair_dados_resultado_curitiba(conteudo)
 
-            log.info(f"Dados extraidos: situacao={dados_extraidos.get('situacao')}")
+            log.info(f"Dados extraidos: situacao={dados_extraidos.get('situacao')} | data_cadastro={dados_extraidos.get('data_cadastro')} | ultima_data={dados_extraidos.get('ultima_data_movimento')} | n_tramites={len(dados_extraidos.get('movimentacoes') or [])}")
+            log.debug(f"[diag] conteudo pagina (500 chars): {conteudo[:500]!r}")
 
             resultado = {
                 "status": "OK",
