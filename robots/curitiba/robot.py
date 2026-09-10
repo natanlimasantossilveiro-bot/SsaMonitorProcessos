@@ -87,7 +87,7 @@ async def consultar_processo_curitiba(processo):
 
             log.info(f"Dados extraidos: situacao={dados_extraidos.get('situacao')}")
 
-            return {
+            resultado = {
                 "status": "OK",
                 "mensagem": "Consulta realizada com sucesso",
                 "status_processo": dados_extraidos["situacao"],
@@ -95,6 +95,15 @@ async def consultar_processo_curitiba(processo):
                 "ultima_movimentacao": dados_extraidos["ultima_movimentacao"],
                 "objeto": dados_extraidos.get("assunto") or dados_extraidos.get("observacoes"),
             }
+
+            movimentacoes = dados_extraidos.get("movimentacoes") or []
+            if movimentacoes:
+                resultado["movimentacoes"] = movimentacoes
+                log.info(f"Tramites encontrados: {len(movimentacoes)}")
+            else:
+                log.info("Nenhum tramite Em: encontrado — usando ultima_data_movimento (CASO 2)")
+
+            return resultado
 
     except Exception as erro:
         mensagem = str(erro)
