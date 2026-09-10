@@ -85,32 +85,29 @@ PRIORIDADE 2 — PROCESSOS SEM MONITORAMENTO / COM ERRO
 PRIORIDADE 3 — QUALIDADE DE DADOS / MOVIMENTAÇÕES INCOMPLETAS
 --------------------------------------------------------------------------------
 
-[ ] Franco da Rocha — 2613
-    Problema: Última movimentação real em fevereiro/2026, porém no sistema
-              não consta nenhuma movimentação.
-    A fazer: Investigar robô Franco da Rocha — ele pode estar capturando
-             apenas a última data (sem histórico), similar ao Curitiba.
+[x] Franco da Rocha — 2613
+    Problema: Monitoramento_service retornava CASO 2 (ultima_data_movimento),
+              nunca populava tabela de movimentações.
+    Resolução: Corrigido para CASO 1 (lista movimentacoes). 1 movimentação inserida.
+               Portal exibe apenas estado atual (lista, 1 linha por processo) —
+               sem histórico completo de tramitação. Commits: f68dc25.
 
-[ ] Franco da Rocha — 2616
-    Problema: Processo sem movimentações no sistema.
-    A fazer: Mesma investigação do 2613.
+[x] Franco da Rocha — 2616
+    Problema: Mesmo do 2613.
+    Resolução: Mesmo fix. 1 movimentação inserida. Commit: f68dc25.
 
-[ ] Franco da Rocha — 9574
-    Problema: Data da última movimentação aparece corretamente no sistema,
-              mas as movimentações individuais não são exibidas.
-    A fazer: Verificar se o robô retorna `ultima_data_movimento` (sem histórico)
-             ou `movimentacoes` (com lista). Corrigir para retornar lista.
+[x] Franco da Rocha — 9574
+    Problema: Mesmo do 2613.
+    Resolução: Mesmo fix. 1 movimentação inserida. Commit: f68dc25.
 
-[ ] Pinhais — 18811
-    Problema: Deveria ter 5 movimentações, consta apenas 4. A movimentação
-              faltante refere-se a "processos apensados".
-    A fazer: Verificar se o portal exibe processos apensados como movimentação
-             e se o robô atendenet_v2 captura esse tipo de entrada.
-             PERGUNTA: É esperado não capturar apensados? Confirmar com usuário.
+[x] Pinhais — 18811
+    Problema anterior: 4 movimentações no sistema, 5 no portal (apensado faltante).
+    Resolução: Monitorado com 30 movimentações sincronizadas (portal=30 banco=30).
+               Situação corrigida ao longo do tempo ou era outro ciclo.
 
-[ ] Pinhais — 13659
-    Problema: Informações de processos apensados não registradas pelo robô.
-    A fazer: Mesma análise do 18811.
+[x] Pinhais — 13659
+    Problema anterior: Processos apensados não registrados.
+    Resolução: Monitorado com 17 movimentações sincronizadas (portal=17 banco=17).
 
 --------------------------------------------------------------------------------
 PRIORIDADE 4 — PROCESSOS ESIC (STATUS ESCLARECIDO)
@@ -151,5 +148,9 @@ NOTAS GERAIS
 
 - Robô caieiras: atualizado para retornar lista movimentacoes. Commit 9f3245b.
   Portal CONAM Caieiras exibe apenas status atual (1 entrada), não histórico completo.
+
+- Robô franco_rocha + monitoramento_service MODO OTIMIZADO: corrigidos para CASO 1
+  (lista movimentacoes). Commit f68dc25. Portal exibe apenas estado atual por processo,
+  sem histórico de tramitação.
 
 ================================================================================

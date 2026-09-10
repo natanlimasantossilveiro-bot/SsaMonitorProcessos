@@ -51,19 +51,6 @@ async def consultar_processo_franco_rocha(processo):
                     "texto_completo": texto,
                 }
 
-            # Diagnóstico: abre a página de detalhe para verificar se há histórico
-            try:
-                row = page.locator(f"tr:has-text('{numero_formatado}')").first
-                if await row.count() > 0:
-                    await row.click()
-                    await page.wait_for_timeout(3000)
-                    texto_detalhe = await page.inner_text("body")
-                    log.info(f"Texto detalhe {numero} (3000 chars): {texto_detalhe[:3000]}")
-                else:
-                    log.warning(f"Linha {numero_formatado} nao encontrada para clicar")
-            except Exception as ex:
-                log.warning(f"Clique no detalhe falhou: {ex}")
-
             linhas = texto.split("\n")
             linha_processo = None
             for linha in linhas:
