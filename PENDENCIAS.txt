@@ -48,12 +48,12 @@ PRIORIDADE 2 — PROCESSOS SEM MONITORAMENTO / COM ERRO
               UPDATE processos SET codigo = 'NOVO_CODIGO' WHERE id = 115;
     URL portal: https://pinhais.atende.net/autoatendimento/servicos/consulta-de-processo-digital/detalhar/1
 
-[ ] Caieiras — 2269
-    Problema: Robô retorna "não encontrado", mas processo existe manualmente.
-              Porém, ao acessar manualmente, também não aparece resultado.
-              Não aparece erro no sistema (status sem falha visível).
-    A fazer: Investigar se o número/formato está correto no portal Caieiras.
-             Verificar qual formato exato o portal aceita.
+[x] Caieiras — 2269
+    Problema original: Robô retornava apenas ultima_data_movimento (CASO 2), sem histórico.
+    Resolução: Robô atualizado para retornar lista movimentacoes (CASO 1).
+               Portal CONAM Caieiras exibe apenas 1 entrada (status atual + data) —
+               limitação do portal, não do robô. 1 movimentação capturada (Em Andamento 30/01/2026).
+               Commit: 9f3245b
 
 [ ] Curitiba — 01-151516/2026
     Problema: Não está sendo monitorado, sem nenhuma movimentação.
@@ -126,6 +126,17 @@ PRIORIDADE 4 — PROCESSOS ESIC (STATUS ESCLARECIDO)
     Resolução: Mesma situação acima — processo encerrado, sem problema no sistema.
 
 --------------------------------------------------------------------------------
+[ ] Curitiba — 01-149925
+    Problema: Campo exercicio não preenchido → robô retorna ERRO_CONSULTA em todo ciclo.
+    A fazer: Verificar qual o ano correto do processo e atualizar:
+             UPDATE processos SET exercicio = 'AAAA' WHERE id = 114;
+
+[ ] Araucária — 59363/2026
+    Problema: Código verificador não cadastrado → CODIGO_VERIFICADOR_AUSENTE em todo ciclo.
+    A fazer: Verificar código verificador no comprovante de abertura e atualizar:
+             UPDATE processos SET codigo = 'NOVO_CODIGO' WHERE id = 154;
+
+--------------------------------------------------------------------------------
 NOTAS GERAIS
 --------------------------------------------------------------------------------
 
@@ -134,8 +145,11 @@ NOTAS GERAIS
   corretamente em numero=90451 e ano=2025.
 
 - Robô ponta_grossa: screenshots de debug removidas (/tmp/pg_formulario.png
-  e /tmp/pg_resultado_*.png). Commit pendente.
+  e /tmp/pg_resultado_*.png). Commit 113173e.
 
 - Robô SJP: filtro "Processo vinculado" ativo. Entradas duplicadas removidas.
+
+- Robô caieiras: atualizado para retornar lista movimentacoes. Commit 9f3245b.
+  Portal CONAM Caieiras exibe apenas status atual (1 entrada), não histórico completo.
 
 ================================================================================
