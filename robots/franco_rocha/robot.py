@@ -40,7 +40,7 @@ async def consultar_processo_franco_rocha(processo):
             log.info("Login realizado")
 
             texto = await page.inner_text("body")
-            log.debug(f"Texto capturado (primeiros 300 chars): {texto[:300]}")
+            log.info(f"Texto lista (3000 chars): {texto[:3000]}")
 
             numero_formatado = numero.zfill(10)
 
