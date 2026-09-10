@@ -128,10 +128,10 @@ PRIORIDADE 4 — PROCESSOS ESIC (STATUS ESCLARECIDO)
     A fazer: Verificar qual o ano correto do processo e atualizar:
              UPDATE processos SET exercicio = 'AAAA' WHERE id = 114;
 
-[ ] Araucária — 59363/2026
+[x] Araucária — 59363/2026
     Problema: Código verificador não cadastrado → CODIGO_VERIFICADOR_AUSENTE em todo ciclo.
-    A fazer: Verificar código verificador no comprovante de abertura e atualizar:
-             UPDATE processos SET codigo = 'NOVO_CODIGO' WHERE id = 154;
+    Resolução: Código 7EM16YUE cadastrado em 10/09/2026.
+               UPDATE processos SET codigo = '7EM16YUE' WHERE id = 154;
 
 --------------------------------------------------------------------------------
 NOTAS GERAIS
