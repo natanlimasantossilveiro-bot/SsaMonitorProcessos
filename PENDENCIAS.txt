@@ -129,9 +129,11 @@ PRIORIDADE 4 — PROCESSOS ESIC (STATUS ESCLARECIDO)
              UPDATE processos SET exercicio = 'AAAA' WHERE id = 114;
 
 [x] Araucária — 59363/2026
-    Problema: Código verificador não cadastrado → CODIGO_VERIFICADOR_AUSENTE em todo ciclo.
-    Resolução: Código 7EM16YUE cadastrado em 10/09/2026.
-               UPDATE processos SET codigo = '7EM16YUE' WHERE id = 154;
+    Problema: Campo acesso=NULL → robô consultava portal de Pinhais (fallback incorreto).
+              Campo codigo ausente → CODIGO_VERIFICADOR_AUSENTE.
+    Resolução: URL corrigida para araucaria.atende.net e código 7EM16YUE cadastrado.
+               26 movimentações inseridas. Status: Finalizado.
+               UPDATE processos SET acesso='https://araucaria.atende.net/...', municipio='Araucária' WHERE id=154;
 
 --------------------------------------------------------------------------------
 NOTAS GERAIS
