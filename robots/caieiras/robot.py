@@ -44,7 +44,7 @@ async def consultar_processo_caieiras(processo):
                     break
             texto_lower = texto.lower()
 
-            log.debug(f"Texto capturado (primeiros 500 chars): {texto[:500]}")
+            log.info(f"Texto pagina (2000 chars): {texto[:2000]}")
 
             if "nenhum processo foi encontrado" in texto_lower:
                 await browser.close()
@@ -54,24 +54,40 @@ async def consultar_processo_caieiras(processo):
                     "mensagem": "Processo nao encontrado no sistema",
                 }
 
+            # Extrai status
             status_processo = None
-            if "deferido" in texto_lower:
-                status_processo = "Deferido"
-            elif "indeferido" in texto_lower:
-                status_processo = "Indeferido"
-            elif "em andamento" in texto_lower:
+            _MAP_STATUS = [
+                (r'indeferido', "Indeferido"),
+                (r'deferido', "Deferido"),
+                (r'em\s+an[aá]lise', "Em analise"),
+                (r'em\s+andamento', "Em andamento"),
+                (r'finalizado', "Finalizado"),
+                (r'conclu[íi]do', "Finalizado"),
+                (r'encerrado', "Encerrado"),
+            ]
+            for padrao, valor in _MAP_STATUS:
+                if re.search(padrao, texto_lower):
+                    status_processo = valor
+                    break
+            if not status_processo:
                 status_processo = "Em andamento"
 
-            data_ultimo_movimento = None
-            match_data = re.search(r"\d{2}/\d{2}/\d{4}", texto)
-            if match_data:
-                try:
-                    data_convertida = datetime.strptime(match_data.group(), "%d/%m/%Y")
-                    data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
-                except Exception:
-                    pass
+            # Extrai movimentações: linhas que contenham data dd/mm/yyyy
+            linhas = texto.split("\n")
+            movimentacoes = [
+                l.strip() for l in linhas
+                if re.search(r"\d{2}/\d{2}/\d{4}", l.strip()) and l.strip()
+            ]
 
-            log.info(f"Status: {status_processo} | Data: {data_ultimo_movimento}")
+            def _data_linha(linha):
+                m = re.search(r"\d{2}/\d{2}/\d{4}", linha)
+                try:
+                    return datetime.strptime(m.group(), "%d/%m/%Y") if m else datetime.min
+                except Exception:
+                    return datetime.min
+
+            movimentacoes.sort(key=_data_linha, reverse=True)
+            log.info(f"Status: {status_processo} | Movimentacoes: {len(movimentacoes)}")
 
             await browser.close()
 
@@ -79,8 +95,7 @@ async def consultar_processo_caieiras(processo):
                 "status": "OK",
                 "mensagem": "Consulta realizada com sucesso",
                 "status_processo": status_processo,
-                "ultima_data_movimento": data_ultimo_movimento,
-                "ultima_movimentacao": status_processo,
+                "movimentacoes": movimentacoes,
                 "objeto": objeto,
             }
 
