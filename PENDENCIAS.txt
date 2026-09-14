@@ -159,7 +159,9 @@ NOTAS GERAIS
   (commit 859bdd5). Quando Da Unidade não tem telefone (ex: SMF), a linha vazia
   era filtrada e o offset j+5 capturava o telefone da unidade destino em vez do nome.
   Fix: detecta padrão NNNN-NNNN em j+4 para escolher entre j+4 e j+5.
-  4 entradas corrigidas no banco (IDs 2890, 2885, 2895, 2897 deletadas e reinseridas
-  corretamente no próximo ciclo como IDs 2899, 2900, 2901, 2904).
+  6 entradas corrigidas no banco:
+    - IDs 2890/2885/2895/2897 → reinseridas como 2899/2900/2901/2904 (processos 109/110/111/162)
+    - IDs 2880/2876 → reinseridas como 2903/2902 (processos 74/81)
+  Todos os 6 processos Curitiba estão com dados 100% corretos em 14/09/2026.
 
 ================================================================================
