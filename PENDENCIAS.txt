@@ -155,4 +155,11 @@ NOTAS GERAIS
   (lista movimentacoes). Commit f68dc25. Portal exibe apenas estado atual por processo,
   sem histórico de tramitação.
 
+- Robô Curitiba — parser: fix de offset "Para Unidade:" deployado em 14/09/2026
+  (commit 859bdd5). Quando Da Unidade não tem telefone (ex: SMF), a linha vazia
+  era filtrada e o offset j+5 capturava o telefone da unidade destino em vez do nome.
+  Fix: detecta padrão NNNN-NNNN em j+4 para escolher entre j+4 e j+5.
+  4 entradas corrigidas no banco (IDs 2890, 2885, 2895, 2897 deletadas e reinseridas
+  corretamente no próximo ciclo como IDs 2899, 2900, 2901, 2904).
+
 ================================================================================
