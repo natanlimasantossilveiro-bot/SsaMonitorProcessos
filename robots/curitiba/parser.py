@@ -88,8 +88,16 @@ def extrair_dados_resultado_curitiba(texto):
 
         for j in range(pos + 1, min(pos + 20, len(linhas))):
             if linhas[j] == "Para Unidade:":
-                if j + 5 < len(linhas):
-                    unidade_mov = linhas[j + 5]
+                # Estrutura após "Para Unidade:": j+1=header "Informações:", j+2=data,
+                # j+3=nome Da Unidade, j+4=telefone Da Unidade (pode estar ausente se vazio),
+                # j+5=nome Para Unidade (quando j+4 presente) ou j+4 (quando j+4 ausente).
+                # Detecta se j+4 é telefone (NNNN-NNNN) para escolher offset correto.
+                if j + 4 < len(linhas):
+                    c4 = linhas[j + 4]
+                    if re.match(r"^\d{4}-\d{4}$", c4) and j + 5 < len(linhas):
+                        unidade_mov = linhas[j + 5]
+                    else:
+                        unidade_mov = c4
                 break
 
         if data_mov:
