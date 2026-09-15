@@ -1,6 +1,6 @@
 ================================================================================
 SSA MONITOR PROCESSOS — LISTA DE PENDÊNCIAS
-Última atualização: 09/09/2026
+Última atualização: 15/09/2026
 ================================================================================
 
 LEGENDA:
@@ -123,6 +123,21 @@ PRIORIDADE 4 — PROCESSOS ESIC (STATUS ESCLARECIDO)
     Resolução: Mesma situação acima — processo encerrado, sem problema no sistema.
 
 --------------------------------------------------------------------------------
+[?] 291848
+    Problema: Processo não cadastrado no banco de dados.
+    A fazer: Confirmar portal/município com responsável e cadastrar com ativo=0
+             (processo sem monitoramento ativo pelo robô).
+
+[?] 316911
+    Problema: Processo não cadastrado no banco de dados.
+    A fazer: Confirmar portal/município com responsável e cadastrar com ativo=0
+             (processo sem monitoramento ativo pelo robô).
+
+[?] 825223
+    Problema: Processo não cadastrado no banco de dados.
+    A fazer: Confirmar portal/município com responsável e cadastrar com ativo=0
+             (processo sem monitoramento ativo pelo robô).
+
 [ ] Curitiba — 01-149925
     Problema: Campo exercicio não preenchido → robô retorna ERRO_CONSULTA em todo ciclo.
     A fazer: Verificar qual o ano correto do processo e atualizar:
@@ -133,7 +148,9 @@ PRIORIDADE 4 — PROCESSOS ESIC (STATUS ESCLARECIDO)
               Campo codigo ausente → CODIGO_VERIFICADOR_AUSENTE.
     Resolução: URL corrigida para araucaria.atende.net e código 7EM16YUE cadastrado.
                26 movimentações inseridas. Status: Finalizado.
-               UPDATE processos SET acesso='https://araucaria.atende.net/...', municipio='Araucária' WHERE id=154;
+               Entrada canônica: id=4 (numero_processo='59363', exercicio=2026).
+               id=154 era duplicata (ano embutido no numero_processo, exercicio=NULL) —
+               removida em 15/09/2026 junto com suas 26 movimentações e historico_consultas.
 
 --------------------------------------------------------------------------------
 NOTAS GERAIS
@@ -163,5 +180,19 @@ NOTAS GERAIS
     - IDs 2890/2885/2895/2897 → reinseridas como 2899/2900/2901/2904 (processos 109/110/111/162)
     - IDs 2880/2876 → reinseridas como 2903/2902 (processos 74/81)
   Todos os 6 processos Curitiba estão com dados 100% corretos em 14/09/2026.
+
+- Banco de dados — limpeza de qualidade em 15/09/2026:
+  1. Ponto final removido do numero_processo de 13 processos SJP (ids 14-24, 27-28).
+     Causa: campo armazenado com '.' no final (ex: '202202113918175081.').
+     Fix: UPDATE processos SET numero_processo = TRIM(TRAILING '.' FROM numero_processo)
+          WHERE numero_processo LIKE '%.'; — 13 rows affected.
+  2. Duplicatas removidas:
+     - id=1  (01-144125/2026, municipio=NULL) — duplicata de id=71 (01-144125, Curitiba).
+              1 movimentação idêntica deletada + historico_consultas limpo.
+     - id=154 (59363/2026, exercicio=NULL) — duplicata de id=4 (59363, Araucária).
+              26 movimentações + historico_consultas deletados; robô re-insere via id=4.
+     - id=155 (01-080428/2026, municipio=NULL, exercicio=NULL) — duplicata de id=72 (01-080428, Curitiba).
+              Sem movimentações; historico_consultas limpo.
+     Total removido: 3 processos, 27 movimentações, 223 registros de historico_consultas.
 
 ================================================================================
