@@ -2,6 +2,7 @@ from playwright.async_api import async_playwright
 from datetime import datetime
 import re
 
+from utils.crypto_utils import descriptografar
 from utils.logger import get_logger
 
 log = get_logger("caieiras")
@@ -10,7 +11,8 @@ log = get_logger("caieiras")
 async def consultar_processo_caieiras(processo):
     url = processo.get("url_orgao") or processo.get("acesso")
     numero_completo = processo.get("numero_processo")
-    cnpj = re.sub(r"[^0-9]", "", str(processo.get("login_acesso") or processo.get("cnpj") or ""))
+    login_raw = descriptografar(str(processo.get("login_acesso") or "")) or str(processo.get("cnpj") or "")
+    cnpj = re.sub(r"[^0-9]", "", login_raw)
 
     log.info(f"Iniciando consulta — numero: {numero_completo}")
 
