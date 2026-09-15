@@ -527,7 +527,16 @@ def buscar_todos_processos(orgao=None, empresa=None, status=None):
                 WHERE h.processo_id = p.id
                 ORDER BY h.id DESC
                 LIMIT 1
-            ) AS ultimo_resultado
+            ) AS ultimo_resultado,
+            (
+                SELECT m.descricao
+                FROM movimentacoes m
+                WHERE m.processo_id = p.id
+                  AND m.descricao IS NOT NULL
+                  AND LENGTH(TRIM(m.descricao)) > 5
+                ORDER BY m.data_movimento DESC, m.id DESC
+                LIMIT 1
+            ) AS ultima_mov_descricao
         FROM processos p
         INNER JOIN orgaos o ON p.orgao_id = o.id
         WHERE {' AND '.join(where)}

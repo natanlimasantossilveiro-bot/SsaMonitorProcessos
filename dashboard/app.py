@@ -1490,7 +1490,18 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
     mun       = escape(str(processo.get("municipio") or orgao))
     exercicio = escape(str(processo.get("exercicio") or ""))
     codigo    = escape(str(processo.get("codigo") or ""))
-    status    = _badge_status(str(processo.get("status_atual") or ""))
+    status_val = str(processo.get("status_atual") or "")
+    status     = _badge_status(status_val)
+    enc_info   = ""
+    if status_val in {"Deferido", "Finalizado", "Indeferido", "Encerrado"} and movimentacoes:
+        m0       = movimentacoes[0]
+        dt_enc   = _fmt_data(m0.get("data_movimento"))
+        desc_enc = str(m0.get("descricao") or "").strip()
+        enc_info = f"<p style='font-size:11px;color:var(--text-2);margin-top:6px;line-height:1.5;'>{escape(dt_enc)}"
+        if desc_enc:
+            desc_short = desc_enc[:120] + ("…" if len(desc_enc) > 120 else "")
+            enc_info += f"<br><span style='font-size:10px;color:var(--text-3);'>{escape(desc_short)}</span>"
+        enc_info += "</p>"
     robo      = escape(str(processo.get("robo") or "—"))
     dt_mov    = escape(_fmt_data(processo.get("data_ultimo_movimento")))
     ult_c     = escape(_fmt_data(processo.get("ultima_consulta"), hora=True))
@@ -1577,6 +1588,7 @@ def gerar_html_detalhe_processo(processo_id: int, usuario=None):
             <div class="card sucesso">
                 <h2 style="font-size:16px;letter-spacing:0;">{status}</h2>
                 <p>Status atual</p>
+                {enc_info}
             </div>
         </div>
 
@@ -1681,16 +1693,31 @@ def gerar_html_processos(processos, orgaos, empresas, statuses,
     _STATUS_CONCLUIDOS = {"Deferido", "Finalizado", "Indeferido", "Encerrado"}
 
     def _gerar_linha(p, dimmed=False):
-        pid    = p["id"]
-        num    = escape(str(p["numero_processo"] or ""))
-        emp    = escape(str(p["empresa"] or ""))
-        cli    = escape(str(p["cliente"] or ""))
-        org    = escape(str(p["orgao"] or ""))
-        ult_c  = _fmt_data(p["ultima_consulta"], hora=True) if p.get("ultima_consulta") else "—"
-        ult_m  = _fmt_data(p["data_ultimo_movimento"]) if p.get("data_ultimo_movimento") else "—"
-        badge_s = _badge_status(p.get("status_atual"))
-        badge_r = _badge_resultado(p.get("ultimo_resultado"))
+        pid       = p["id"]
+        num       = escape(str(p["numero_processo"] or ""))
+        emp       = escape(str(p["empresa"] or ""))
+        cli       = escape(str(p["cliente"] or ""))
+        org       = escape(str(p["orgao"] or ""))
+        ult_c     = _fmt_data(p["ultima_consulta"], hora=True) if p.get("ultima_consulta") else "—"
+        ult_m     = _fmt_data(p["data_ultimo_movimento"]) if p.get("data_ultimo_movimento") else "—"
+        status_v  = str(p.get("status_atual") or "")
+        badge_s   = _badge_status(status_v)
+        badge_r   = _badge_resultado(p.get("ultimo_resultado"))
         opacidade = "opacity:0.6;" if dimmed else ""
+
+        if status_v in _STATUS_CONCLUIDOS:
+            dt_enc   = _fmt_data(p.get("data_ultimo_movimento")) if p.get("data_ultimo_movimento") else ""
+            desc_enc = str(p.get("ultima_mov_descricao") or "").strip()
+            if len(desc_enc) > 70:
+                desc_enc = desc_enc[:70] + "…"
+            partes = []
+            if dt_enc:
+                partes.append(f"em {dt_enc}")
+            if desc_enc:
+                partes.append(desc_enc)
+            if partes:
+                badge_s += f"<div style='font-size:10px;color:var(--text-3);margin-top:3px;line-height:1.4;'>{escape(' · '.join(partes))}</div>"
+
         return f"""
         <tr onclick="window.location='/processo/{pid}'" style="cursor:pointer;{opacidade}">
             <td><strong style='font-size:12px;'>{num}</strong></td>
