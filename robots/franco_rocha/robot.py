@@ -13,43 +13,6 @@ async def _extrair_movimentacoes_tabela(page):
     Captura conteúdo completo dos despachos (multi-linha dentro da célula).
     Retorna a tabela com mais linhas de data encontrada na página.
     """
-    # Tenta revelar linhas de despacho que possam estar colapsadas
-    await page.evaluate("""
-        () => {
-            document.querySelectorAll('.collapse').forEach(el => {
-                el.style.display = 'block';
-                el.classList.add('in', 'show');
-            });
-            document.querySelectorAll('table tr').forEach(tr => {
-                if (window.getComputedStyle(tr).display === 'none') {
-                    tr.style.display = 'table-row';
-                }
-            });
-        }
-    """)
-    await page.wait_for_timeout(500)
-
-    # DEBUG — inspeciona estrutura dos <tr> da primeira tabela com datas
-    debug_rows = await page.evaluate("""
-        () => {
-            for (const tbl of document.querySelectorAll('table')) {
-                const rows = Array.from(tbl.querySelectorAll('tr'));
-                const hasDates = rows.some(r => /\\d{2}\\/\\d{2}\\/\\d{4}/.test(r.innerText));
-                if (!hasDates) continue;
-                return rows.map(r => ({
-                    display: window.getComputedStyle(r).display,
-                    cls: r.className,
-                    cells: r.cells.length,
-                    text: r.innerText.slice(0, 120).replace(/\\n/g, ' | ')
-                }));
-            }
-            return [];
-        }
-    """)
-    log.info(f"DEBUG tabela tramitacoes: {len(debug_rows)} linhas")
-    for i, r in enumerate(debug_rows[:30]):
-        log.info(f"  [row {i:02d}] display={r['display']} cls={r['cls']!r} cells={r['cells']} text={r['text'][:80]!r}")
-
     melhor = []
     tabelas = await page.query_selector_all("table")
     for tabela in tabelas:
@@ -150,8 +113,9 @@ async def consultar_processo_franco_rocha(processo):
                 (r'em\s+an[aá]lise', "Em analise"),
                 (r'em\s+andamento', "Em andamento"),
                 (r'finalizado', "Finalizado"),
-                (r'conclu[íi]do', "Finalizado"),
                 (r'encerrado', "Encerrado"),
+                # "CONCLUIDO" neste portal = fase encerrada, não processo encerrado.
+                # Não mapeado para "Finalizado" para evitar exclusão do monitoramento.
             ]
             status_processo = None
             if movimentacoes:

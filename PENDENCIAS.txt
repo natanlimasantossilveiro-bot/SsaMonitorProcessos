@@ -184,6 +184,12 @@ NOTAS GERAIS
   Fix detalhe: robô agora navega da listagem para a página de detalhe de cada processo
   e extrai o histórico completo de tramitações (commit 93d0014, 15/09/2026).
   3 entradas fantasma deletadas do banco (ids 2842/2843/2844 — formato antigo tab-separado).
+  Fix status: "CONCLUIDO" removido do _MAP_STATUS (não mapeia mais para "Finalizado") —
+  no portal de Franco da Rocha "CONCLUIDO" é fase encerrada, não encerramento definitivo.
+  Status 2613/9574 resetados no banco após o fix:
+    UPDATE processos SET status_atual = NULL WHERE numero_processo IN ('2613', '9574');
+  Tabela de 2613 tem 12 linhas reais no portal (nenhuma oculta) — confirmado por debug
+  de 15/09/2026. As ~20 entradas que o usuário via eram do processo mestre 2616.
 
 - Robô Curitiba — parser: fix de offset "Para Unidade:" deployado em 14/09/2026
   (commit 859bdd5). Quando Da Unidade não tem telefone (ex: SMF), a linha vazia
