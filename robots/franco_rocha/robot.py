@@ -39,47 +39,68 @@ async def consultar_processo_franco_rocha(processo):
 
             log.info("Login realizado")
 
-            texto = await page.inner_text("body")
+            texto_lista = await page.inner_text("body")
             numero_formatado = numero.zfill(10)
 
-            if numero_formatado not in texto:
+            if numero_formatado not in texto_lista:
                 await browser.close()
                 log.info("Processo nao encontrado na lista")
                 return {
                     "status": "PROCESSO_NAO_ENCONTRADO",
                     "mensagem": "Processo nao encontrado na lista",
-                    "texto_completo": texto,
                 }
 
+            # Abre o detalhe do processo clicando no número na lista
+            await page.click(f"text={numero_formatado}")
+            await page.wait_for_timeout(3000)
+
+            texto = await page.inner_text("body")
+            log.info(f"Texto detalhe (2000 chars): {texto[:2000]}")
+
+            texto_lower = texto.lower()
+
+            # Extrai movimentações: linhas que começam com dd/mm/yyyy HH:MM
             linhas = texto.split("\n")
-            linha_processo = None
+            movimentacoes = []
             for linha in linhas:
-                if numero_formatado in linha:
-                    linha_processo = linha.strip()
-                    break
+                stripped = linha.strip()
+                if re.match(r"\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}", stripped):
+                    movimentacoes.append(stripped)
 
-            linha_lower = (linha_processo or "").lower()
+            def _data_linha(linha):
+                m = re.search(r"\d{2}/\d{2}/\d{4}", linha)
+                try:
+                    return datetime.strptime(m.group(), "%d/%m/%Y") if m else datetime.min
+                except Exception:
+                    return datetime.min
 
-            if "finalizado" in linha_lower:
-                status_processo = "Finalizado"
-            elif "analise" in linha_lower or "análise" in linha_lower:
-                status_processo = "Em analise"
-            elif "andamento" in linha_lower:
+            movimentacoes.sort(key=_data_linha, reverse=True)
+
+            # Status: tenta a movimentação mais recente primeiro, fallback no texto todo
+            _MAP_STATUS = [
+                (r'indeferido', "Indeferido"),
+                (r'deferido', "Deferido"),
+                (r'em\s+an[aá]lise', "Em analise"),
+                (r'em\s+andamento', "Em andamento"),
+                (r'finalizado', "Finalizado"),
+                (r'conclu[íi]do', "Finalizado"),
+                (r'encerrado', "Encerrado"),
+            ]
+            status_processo = None
+            if movimentacoes:
+                for padrao, valor in _MAP_STATUS:
+                    if re.search(padrao, movimentacoes[0].lower()):
+                        status_processo = valor
+                        break
+            if not status_processo:
+                for padrao, valor in _MAP_STATUS:
+                    if re.search(padrao, texto_lower):
+                        status_processo = valor
+                        break
+            if not status_processo:
                 status_processo = "Em andamento"
-            else:
-                status_processo = "Em andamento"
 
-            data_ultimo_movimento = None
-            if linha_processo:
-                datas = re.findall(r"\d{2}/\d{2}/\d{4}", linha_processo)
-                if datas:
-                    try:
-                        data_convertida = datetime.strptime(datas[-1], "%d/%m/%Y")
-                        data_ultimo_movimento = data_convertida.strftime("%Y-%m-%d")
-                    except Exception:
-                        pass
-
-            log.info(f"Status: {status_processo} | Data: {data_ultimo_movimento}")
+            log.info(f"Status: {status_processo} | Movimentacoes: {len(movimentacoes)}")
 
             await browser.close()
 
@@ -87,9 +108,7 @@ async def consultar_processo_franco_rocha(processo):
                 "status": "OK",
                 "mensagem": "Consulta realizada com sucesso",
                 "status_processo": status_processo,
-                "ultima_data_movimento": data_ultimo_movimento,
-                "ultima_movimentacao": linha_processo,
-                "texto_completo": texto,
+                "movimentacoes": movimentacoes,
             }
 
     except Exception as e:
