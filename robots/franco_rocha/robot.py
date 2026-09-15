@@ -7,6 +7,35 @@ from utils.logger import get_logger
 log = get_logger("franco_rocha")
 
 
+async def _extrair_movimentacoes_tabela(page):
+    """
+    Extrai movimentações lendo células de cada <tr> da tabela de tramitações.
+    Captura conteúdo completo dos despachos (multi-linha dentro da célula).
+    Retorna a tabela com mais linhas de data encontrada na página.
+    """
+    melhor = []
+    tabelas = await page.query_selector_all("table")
+    for tabela in tabelas:
+        candidatas = []
+        rows = await tabela.query_selector_all("tr")
+        for row in rows:
+            cells = await row.query_selector_all("td")
+            if not cells:
+                continue
+            date_text = (await cells[0].inner_text()).strip()
+            if not re.match(r"\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}", date_text):
+                continue
+            partes = [date_text]
+            for i in range(1, len(cells)):
+                cell_text = (await cells[i].inner_text()).strip()
+                if cell_text:
+                    partes.append(re.sub(r'\s+', ' ', cell_text)[:400])
+            candidatas.append("  ".join(partes))
+        if len(candidatas) > len(melhor):
+            melhor = candidatas
+    return melhor
+
+
 async def consultar_processo_franco_rocha(processo):
     url = processo.get("url_orgao")
     numero = str(processo.get("numero_processo"))
@@ -59,13 +88,15 @@ async def consultar_processo_franco_rocha(processo):
 
             texto_lower = texto.lower()
 
-            # Extrai movimentações: linhas que começam com dd/mm/yyyy HH:MM
-            linhas = texto.split("\n")
-            movimentacoes = []
-            for linha in linhas:
-                stripped = linha.strip()
-                if re.match(r"\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}", stripped):
-                    movimentacoes.append(stripped)
+            # Extrai movimentações via células de tabela (captura despachos completos)
+            movimentacoes = await _extrair_movimentacoes_tabela(page)
+
+            # Fallback: linha de texto se tabela não retornou nada
+            if not movimentacoes:
+                for linha in texto.split("\n"):
+                    stripped = linha.strip()
+                    if re.match(r"\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}", stripped):
+                        movimentacoes.append(stripped)
 
             def _data_linha(linha):
                 m = re.search(r"\d{2}/\d{2}/\d{4}", linha)
@@ -76,7 +107,6 @@ async def consultar_processo_franco_rocha(processo):
 
             movimentacoes.sort(key=_data_linha, reverse=True)
 
-            # Status: tenta a movimentação mais recente primeiro, fallback no texto todo
             _MAP_STATUS = [
                 (r'indeferido', "Indeferido"),
                 (r'deferido', "Deferido"),
