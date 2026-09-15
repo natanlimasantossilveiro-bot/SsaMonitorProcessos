@@ -91,19 +91,23 @@ PRIORIDADE 3 — QUALIDADE DE DADOS / MOVIMENTAÇÕES INCOMPLETAS
 --------------------------------------------------------------------------------
 
 [x] Franco da Rocha — 2613
-    Problema: Monitoramento_service retornava CASO 2 (ultima_data_movimento),
-              nunca populava tabela de movimentações.
-    Resolução: Corrigido para CASO 1 (lista movimentacoes). 1 movimentação inserida.
-               Portal exibe apenas estado atual (lista, 1 linha por processo) —
-               sem histórico completo de tramitação. Commits: f68dc25.
+    Problema 1: Monitoramento_service retornava CASO 2 (ultima_data_movimento),
+                nunca populava tabela de movimentações. Commit: f68dc25.
+    Problema 2: Robô lia apenas a listagem de processos → 1 linha = 1 movimentação
+                (tab-separada, com o texto da descrição do processo, não do tramite).
+    Resolução 2: Robô agora clica no número do processo para abrir o detalhe e extrai
+                 todas as linhas com data dd/mm/yyyy HH:MM. 12 movimentações inseridas.
+                 Entrada fantasma (id=2844) deletada do banco. Commit: 93d0014.
 
 [x] Franco da Rocha — 2616
-    Problema: Mesmo do 2613.
-    Resolução: Mesmo fix. 1 movimentação inserida. Commit: f68dc25.
+    Problema: Mesmo do 2613 (problema 2).
+    Resolução: Mesmo fix. Entrada fantasma (id=2843) deletada.
+               12 movimentações serão inseridas no próximo ciclo. Commit: 93d0014.
 
 [x] Franco da Rocha — 9574
-    Problema: Mesmo do 2613.
-    Resolução: Mesmo fix. 1 movimentação inserida. Commit: f68dc25.
+    Problema: Mesmo do 2613 (problema 2).
+    Resolução: Mesmo fix. Entrada fantasma (id=2842) deletada.
+               12 movimentações inseridas. Commit: 93d0014.
 
 [x] Pinhais — 18811
     Problema anterior: 4 movimentações no sistema, 5 no portal (apensado faltante).
@@ -176,8 +180,10 @@ NOTAS GERAIS
   Commit e226521. Testado e validado em 15/09/2026.
 
 - Robô franco_rocha + monitoramento_service MODO OTIMIZADO: corrigidos para CASO 1
-  (lista movimentacoes). Commit f68dc25. Portal exibe apenas estado atual por processo,
-  sem histórico de tramitação.
+  (lista movimentacoes). Commit f68dc25.
+  Fix detalhe: robô agora navega da listagem para a página de detalhe de cada processo
+  e extrai o histórico completo de tramitações (commit 93d0014, 15/09/2026).
+  3 entradas fantasma deletadas do banco (ids 2842/2843/2844 — formato antigo tab-separado).
 
 - Robô Curitiba — parser: fix de offset "Para Unidade:" deployado em 14/09/2026
   (commit 859bdd5). Quando Da Unidade não tem telefone (ex: SMF), a linha vazia
