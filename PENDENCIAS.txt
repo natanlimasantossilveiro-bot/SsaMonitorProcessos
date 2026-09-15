@@ -50,10 +50,15 @@ PRIORIDADE 2 — PROCESSOS SEM MONITORAMENTO / COM ERRO
 
 [x] Caieiras — 2269
     Problema original: Robô retornava apenas ultima_data_movimento (CASO 2), sem histórico.
-    Resolução: Robô atualizado para retornar lista movimentacoes (CASO 1).
-               Portal CONAM Caieiras exibe apenas 1 entrada (status atual + data) —
-               limitação do portal, não do robô. 1 movimentação capturada (Em Andamento 30/01/2026).
-               Commit: 9f3245b
+    Resolução 1: Robô atualizado para retornar lista movimentacoes (CASO 1).
+                 Portal CONAM Caieiras exibe apenas 1 entrada (status atual + data) —
+                 limitação do portal, não do robô. 1 movimentação capturada (Em Andamento 30/01/2026).
+                 Commit: 9f3245b
+    Problema 2: Processo acessado por CPF (944.120.570-20), armazenado criptografado em
+                login_acesso (Fernet). Robô extraía dígitos diretamente do token cifrado
+                em vez de descriptografar primeiro → CPF inválido enviado ao portal.
+    Resolução 2: descriptografar() chamado antes do re.sub → CPF correto. Commit: e226521.
+                 Testado em 15/09/2026: consulta retornou OK, 1 mov sincronizada.
 
 [x] Curitiba — 01-151516/2026
     Problema: Robô retornava CASO 2 (ultima_data_movimento) — movimentações nunca inseridas.
@@ -167,6 +172,8 @@ NOTAS GERAIS
 
 - Robô caieiras: atualizado para retornar lista movimentacoes. Commit 9f3245b.
   Portal CONAM Caieiras exibe apenas status atual (1 entrada), não histórico completo.
+  Fix CPF: login_acesso (Fernet) agora é descriptografado antes de extrair dígitos.
+  Commit e226521. Testado e validado em 15/09/2026.
 
 - Robô franco_rocha + monitoramento_service MODO OTIMIZADO: corrigidos para CASO 1
   (lista movimentacoes). Commit f68dc25. Portal exibe apenas estado atual por processo,
