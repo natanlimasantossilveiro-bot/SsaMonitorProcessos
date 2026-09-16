@@ -393,13 +393,17 @@ def movimentacao_ja_existe(processo_id, data, descricao):
     # Check 2b: normalizado — mesma data + mesmo conteúdo após remover rótulos variáveis.
     # Cobre portais como ESIC onde "Protocolo:  XYZ" e "XYZ" são o mesmo evento mas não
     # têm horário HH:MM:SS, impedindo que o Check 3 os alcance.
+    # Protegido por tipo_movimento para não fundir Reabertura+Trâmite com mesmo timestamp.
     norm_desc = _PATTERN_ROTULOS.sub('', descricao or '').strip()[:60]
     if norm_desc and norm_desc != prefixo and len(norm_desc) >= 30:
+        tipo_2b = _tipo_movimento(descricao)
         cursor.execute("""
             SELECT id, descricao FROM movimentacoes
             WHERE processo_id = %s AND data_movimento <=> %s
         """, (processo_id, data))
         for row in cursor.fetchall():
+            if _tipo_movimento(row['descricao']) != tipo_2b:
+                continue
             row_norm = _PATTERN_ROTULOS.sub('', row['descricao'] or '').strip()[:60]
             if row_norm == norm_desc:
                 cursor.close(); conexao.close(); return True
@@ -477,10 +481,12 @@ def _movimento_tem_correspondente(data_iso, descricao, portal_movs):
                 if db_norm == p_norm and len(db_norm) >= 30:
                     return True
         # Check normalizado por rótulos (ex: ESIC "Protocolo: XYZ" == "XYZ")
-        db_norm60 = _PATTERN_ROTULOS.sub('', descricao or '').strip()[:60]
-        p_norm60  = _PATTERN_ROTULOS.sub('', p_desc or '').strip()[:60]
-        if len(db_norm60) >= 30 and db_norm60 == p_norm60:
-            return True
+        # Protegido por tipo para não fundir Reabertura+Trâmite com mesmo timestamp.
+        if _tipo_movimento(p_desc) == _tipo_movimento(descricao):
+            db_norm60 = _PATTERN_ROTULOS.sub('', descricao or '').strip()[:60]
+            p_norm60  = _PATTERN_ROTULOS.sub('', p_desc or '').strip()[:60]
+            if len(db_norm60) >= 30 and db_norm60 == p_norm60:
+                return True
     return False
 
 
