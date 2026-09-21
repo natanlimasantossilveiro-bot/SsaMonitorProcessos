@@ -252,68 +252,6 @@ async def monitorar_processos_ativos():
 
         log.info(f"Processando robo: {nome_robo} | {len(lista_processos)} processo(s)")
 
-        # ======================================================
-        # 🔥 FRANCO DA ROCHA (MODO OTIMIZADO)
-        # ======================================================
-        if nome_robo == "franco_rocha":
-
-            try:
-                resultado_lista = await consultar_processo_franco_rocha(lista_processos[0])
-
-                texto = resultado_lista.get("texto_completo", "")
-
-                for processo in lista_processos:
-
-                    numero = str(processo.get("numero_processo"))
-
-                    log.info(f"Franco da Rocha: processando processo {numero}")
-
-                    if numero not in texto:
-                        resultado_individual = {
-                            "status": "PROCESSO_NAO_ENCONTRADO",
-                            "mensagem": "Processo não encontrado na lista",
-                        }
-                    else:
-                        linhas = texto.split("\n")
-
-                        linha_processo = None
-                        for linha in linhas:
-                            if numero in linha:
-                                linha_processo = linha
-                                break
-
-                        status_processo = "Em andamento"
-                        movimentacao = linha_processo or ""
-
-                        resultado_individual = {
-                            "status": "OK",
-                            "mensagem": "Consulta realizada com sucesso",
-                            "status_processo": status_processo,
-                            "movimentacoes": [movimentacao] if movimentacao else [],
-                        }
-
-                    status = resultado_individual.get("status", "OK")
-                    incrementar_resumo(resumo, status)
-
-                    eventos_processos.append(
-                        criar_evento_processo(processo, resultado_individual)
-                    )
-
-                    async def retorno_fixo(_):
-                        return resultado_individual
-
-                    await consultar_com_robo(
-                        processo=processo,
-                        nome_robo="franco_rocha",
-                        funcao_consulta=retorno_fixo,
-                    )
-
-                    _progresso["concluidos"] += 1
-
-            except Exception as e:
-                log.error(f"Erro no robo Franco da Rocha: {e}")
-
-            continue
 
         # ======================================================
         # ✅ OUTROS ROBÔS (AGORA PARALELO ⚡)
