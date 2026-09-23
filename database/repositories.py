@@ -1,5 +1,6 @@
 import re
 from database.connection import criar_conexao
+from services.webhook_service import disparar_evento
 from utils.crypto_utils import criptografar, descriptografar
 
 _PATTERN_HORARIO = re.compile(r'\d{2}/\d{2}/\d{4}\s*(\d{2}:\d{2}:\d{2})')
@@ -131,6 +132,8 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
+    processo_novo = not processo_existente
+
     if processo_existente:
         cursor.execute("""
             UPDATE processos SET
@@ -188,6 +191,16 @@ def cadastrar_ou_atualizar_processo_planilha(dados):
     cursor.close()
     conexao.close()
 
+    if processo_novo:
+        disparar_evento("processo.criado", {
+            "processo_id": processo_id,
+            "orgao_id": dados["orgao_id"],
+            "numero_processo": dados["numero_processo"],
+            "empresa": dados["empresa"],
+            "cnpj": dados["cnpj"],
+            "municipio": dados["municipio"],
+        })
+
     return processo_id
 
 
@@ -205,6 +218,16 @@ def cadastrar_processo_manual(orgao_id, numero_processo, empresa, cnpj, municipi
     conexao.commit()
     cursor.close()
     conexao.close()
+
+    disparar_evento("processo.criado", {
+        "processo_id": processo_id,
+        "orgao_id": orgao_id,
+        "numero_processo": numero_processo,
+        "empresa": empresa,
+        "cnpj": cnpj,
+        "municipio": municipio,
+    })
+
     return processo_id
 
 
@@ -270,6 +293,13 @@ def atualizar_dados_processo(
     monitorado
 ):
     conexao = criar_conexao()
+
+    cursor = conexao.cursor(dictionary=True)
+    cursor.execute("SELECT status_atual FROM processos WHERE id = %s", (processo_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    status_anterior = row["status_atual"] if row else None
+
     cursor = conexao.cursor()
 
     # COALESCE: só atualiza status/data/movimentação se o novo valor não for NULL.
@@ -296,6 +326,13 @@ def atualizar_dados_processo(
     conexao.commit()
     cursor.close()
     conexao.close()
+
+    if status_processo is not None and status_processo != status_anterior:
+        disparar_evento("processo.status_alterado", {
+            "processo_id": processo_id,
+            "status_anterior": status_anterior,
+            "status_novo": status_processo,
+        })
 
 
 def atualizar_objeto_processo(processo_id, objeto):
@@ -460,6 +497,12 @@ def registrar_movimentacao(processo_id, data, descricao):
     cursor.close()
     conexao.close()
 
+    disparar_evento("movimentacao.criada", {
+        "processo_id": processo_id,
+        "data_movimento": str(data) if data is not None else None,
+        "descricao": descricao,
+    })
+
     return True
 
 
@@ -614,5 +657,10 @@ def registrar_alteracoes(processo_id, alteracoes):
     conexao.commit()
     cursor.close()
     conexao.close()
+
+    disparar_evento("processo.alteracao_detectada", {
+        "processo_id": processo_id,
+        "alteracoes": alteracoes,
+    })
 
     return total

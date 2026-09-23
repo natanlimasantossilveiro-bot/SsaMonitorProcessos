@@ -1,0 +1,23 @@
+[Unit]
+Description=SSA Monitor Processos — API de leitura (FastAPI)
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=ssa
+Group=ssa
+WorkingDirectory=/opt/ssa-monitor
+EnvironmentFile=/opt/ssa-monitor/.env
+# 127.0.0.1: só o nginx local (proxy_pass) acessa a API — nunca expor
+# a porta 8001 direto para a internet.
+Environment=API_HOST=127.0.0.1
+Environment=API_PORT=8001
+ExecStart=/opt/ssa-monitor/.venv/bin/python -m api.main
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/ssa-monitor/api.log
+StandardError=append:/var/log/ssa-monitor/api.log
+
+[Install]
+WantedBy=multi-user.target
