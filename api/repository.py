@@ -1,4 +1,4 @@
-from database.connection import criar_conexao
+from api.db import obter_conexao
 
 # Queries de leitura dedicadas à API. Nunca reaproveitar funções de
 # database/repositories.py que decriptam login_acesso/senha_acesso — a API
@@ -6,7 +6,7 @@ from database.connection import criar_conexao
 
 
 def listar_orgaos():
-    conexao = criar_conexao()
+    conexao = obter_conexao()
     cursor = conexao.cursor(dictionary=True)
 
     cursor.execute("""
@@ -23,7 +23,7 @@ def listar_orgaos():
 
 
 def listar_processos(orgao_id=None, status_atual=None, limite=50, offset=0):
-    conexao = criar_conexao()
+    conexao = obter_conexao()
     cursor = conexao.cursor(dictionary=True)
 
     condicoes = []
@@ -64,7 +64,7 @@ def listar_processos(orgao_id=None, status_atual=None, limite=50, offset=0):
 
 
 def buscar_processo_por_id(processo_id):
-    conexao = criar_conexao()
+    conexao = obter_conexao()
     cursor = conexao.cursor(dictionary=True)
 
     cursor.execute("""
@@ -88,7 +88,7 @@ def buscar_processo_por_id(processo_id):
 
 
 def listar_movimentacoes_do_processo(processo_id):
-    conexao = criar_conexao()
+    conexao = obter_conexao()
     cursor = conexao.cursor(dictionary=True)
 
     cursor.execute("""

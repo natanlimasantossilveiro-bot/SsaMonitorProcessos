@@ -4,7 +4,9 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from mysql.connector.errors import PoolError
 
 from api.routers import orgaos, processos
 
@@ -18,6 +20,13 @@ app = FastAPI(
 
 app.include_router(orgaos.router)
 app.include_router(processos.router)
+
+
+@app.exception_handler(PoolError)
+def pool_exhausted_handler(request: Request, exc: PoolError):
+    # Pool momentaneamente esgotado sob rajada — sinaliza "tente de novo"
+    # em vez de um 500 genérico.
+    return JSONResponse(status_code=503, content={"detail": "Servidor sobrecarregado, tente novamente."})
 
 
 @app.get("/health")
