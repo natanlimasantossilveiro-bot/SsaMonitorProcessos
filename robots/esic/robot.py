@@ -61,11 +61,8 @@ class RobotEsicSJP(RobotBase):
                         idx = texto.index(marcador) + len(marcador)
                         objeto = texto[idx:idx + 500].strip().split("\n")[0].strip() or None
                         break
-                linhas = [l.strip() for l in texto.split("\n") if l.strip()]
 
-                log.info(f"Linhas capturadas: {len(linhas)}")
-
-                texto_total = " ".join(linhas).lower()
+                texto_total = texto.lower()
 
                 if "concluido" in texto_total or "concluído" in texto_total:
                     status = "Finalizado"
@@ -76,14 +73,30 @@ class RobotEsicSJP(RobotBase):
                 else:
                     status = "Em analise"
 
+                # Extrai data da última resposta a partir do campo "Situação Atual"
+                ultima_data = None
+                ultima_mov_desc = None
+                m = re.search(r"Situa[çc][aã]o\s+Atual:.*?(\d{2}/\d{2}/\d{4})\s+às\s+(\d{2}:\d{2})", texto)
+                if m:
+                    ultima_data = m.group(1)
+                    hora = m.group(2)
+                    ultima_mov_desc = f"{status} - {ultima_data} às {hora}"
+                    log.info(f"Ultima data extraída: {ultima_data} às {hora}")
+
                 log.info(f"Status: {status}")
 
                 await browser.close()
 
+                # Não retornar as linhas brutas da página como movimentações — o portal
+                # e-SIC não tem estrutura de tramites; retornar lista vazia evita que
+                # metadados do cabeçalho (Protocolo:, Situação Atual:, Data:) sejam
+                # inseridos no banco como movimentações falsas.
                 return {
                     "status": "OK",
                     "status_processo": status,
-                    "movimentacoes": linhas[:30],
+                    "movimentacoes": [],
+                    "ultima_data_movimento": ultima_data,
+                    "ultima_movimentacao": ultima_mov_desc,
                     "objeto": objeto,
                 }
         finally:
