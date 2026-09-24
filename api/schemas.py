@@ -31,6 +31,8 @@ class ProcessoOut(BaseModel):
     ultima_consulta: Optional[datetime] = None
     ativo: Optional[bool] = None
     nome_orgao: Optional[str] = None
+    monitorado: Optional[bool] = None
+    ultimo_resultado: Optional[str] = None
 
 
 class MovimentacaoOut(BaseModel):

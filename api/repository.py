@@ -49,7 +49,15 @@ def listar_processos(orgao_id=None, status_atual=None, limite=50, offset=0):
             processos.status_processo, processos.status_atual,
             processos.data_ultimo_movimento, processos.ultima_movimentacao,
             processos.ultima_consulta, processos.ativo,
-            orgaos.nome AS nome_orgao
+            processos.monitorado,
+            orgaos.nome AS nome_orgao,
+            (
+                SELECT h.status_consulta
+                FROM historico_consultas h
+                WHERE h.processo_id = processos.id
+                ORDER BY h.id DESC
+                LIMIT 1
+            ) AS ultimo_resultado
         FROM processos
         INNER JOIN orgaos ON processos.orgao_id = orgaos.id
         {where}
@@ -75,7 +83,15 @@ def buscar_processo_por_id(processo_id):
             processos.status_processo, processos.status_atual,
             processos.data_ultimo_movimento, processos.ultima_movimentacao,
             processos.ultima_consulta, processos.ativo,
-            orgaos.nome AS nome_orgao
+            processos.monitorado,
+            orgaos.nome AS nome_orgao,
+            (
+                SELECT h.status_consulta
+                FROM historico_consultas h
+                WHERE h.processo_id = processos.id
+                ORDER BY h.id DESC
+                LIMIT 1
+            ) AS ultimo_resultado
         FROM processos
         INNER JOIN orgaos ON processos.orgao_id = orgaos.id
         WHERE processos.id = %s
