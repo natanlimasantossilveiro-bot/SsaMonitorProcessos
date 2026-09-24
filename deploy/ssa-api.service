@@ -10,9 +10,9 @@ Group=ssa
 WorkingDirectory=/opt/ssa-monitor
 EnvironmentFile=/opt/ssa-monitor/.env
 # 127.0.0.1: só o nginx local (proxy_pass) acessa a API — nunca expor
-# a porta 8001 direto para a internet.
+# a porta 8002 direto para a internet.
 Environment=API_HOST=127.0.0.1
-Environment=API_PORT=8001
+Environment=API_PORT=8002
 ExecStart=/opt/ssa-monitor/.venv/bin/python -m api.main
 Restart=always
 RestartSec=10
