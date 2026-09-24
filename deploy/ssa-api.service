@@ -9,9 +9,11 @@ User=ssa
 Group=ssa
 WorkingDirectory=/opt/ssa-monitor
 EnvironmentFile=/opt/ssa-monitor/.env
-# 127.0.0.1: só o nginx local (proxy_pass) acessa a API — nunca expor
-# a porta 8002 direto para a internet.
-Environment=API_HOST=127.0.0.1
+# 0.0.0.0: igual ao ssa-dashboard.service — o nginx compartilhado roda em
+# container Docker e alcança o host via 172.17.0.1, não 127.0.0.1. Quem
+# restringe o acesso externo é o UFW (allow só das redes docker, deny o
+# resto), não o bind address.
+Environment=API_HOST=0.0.0.0
 Environment=API_PORT=8002
 ExecStart=/opt/ssa-monitor/.venv/bin/python -m api.main
 Restart=always
