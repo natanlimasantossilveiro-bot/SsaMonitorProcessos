@@ -494,6 +494,8 @@ async def consultar_com_robo(
         mensagem = str(erro)
         log.error(f"Processo {processo_id}: excecao na consulta — {mensagem}")
 
+        atualizar_dados_processo(processo_id, None, None, None, 0)
+
         registrar_historico_consulta(
             processo_id=processo_id,
             status=STATUS_ERRO_CONSULTA,
