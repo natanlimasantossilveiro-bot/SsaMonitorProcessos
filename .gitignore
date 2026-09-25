@@ -24,3 +24,16 @@ relatorios/
 
 # Sessoes autenticadas (cookies — nao versionar)
 robots/atendenet_v2/session_state.json
+
+# Perfis de navegador (cookies, senhas salvas, histórico)
+chrome_profile/
+
+# Dados operacionais com informação de clientes (LGPD — nunca versionar)
+data/
+captchas/
+PENDENCIAS.txt
+inserir_*.sql
+scripts/gerar_sql_novos_processos.py
+
+# Estado de execução gerado pelo dashboard
+.monitor_status.json
